@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Daniel J. H.</title>
+    <link>https://daniel-j-h.github.io/</link>
+    <description>Recent content on Daniel J. H.</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    
+    
+    
+    <lastBuildDate>Mon, 01 Jan 0001 00:00:00 UT</lastBuildDate>
+    <atom:link href="https://daniel-j-h.github.io/index.xml" rel="self" type="application/rss+xml" />
+    
+  </channel>
+</rss>
