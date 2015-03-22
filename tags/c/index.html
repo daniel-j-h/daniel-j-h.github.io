@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="blog blog blog">
+
+    <title>C &middot; Daniel J. H.</title>
+    <link href='//fonts.googleapis.com/css?family=Source+Sans+Pro:400,700|Oxygen:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="/css/pure-min.css">
+    
+    
+        <link rel="stylesheet" href="/css/grids-responsive-min.css">
+    
+
+    
+    
+        <link rel="stylesheet" href="/css/blog.css">
+    
+    <link href="//netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/highlight.min.css">
+    <script src="/js/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body>
+
+
+<div id="layout" class="pure-g">
+    <div class="sidebar pure-u-1 pure-u-md-1-4">
+    <div class="header">
+        <hgroup>
+            <h1 class="brand-title"><a href="https://daniel-j-h.github.io">Daniel J. H.</a></h1>
+            <h2 class="brand-tagline"> blog blog blog </h2>
+        </hgroup>
+
+        <nav class="nav">
+            <ul class="nav-list">
+                
+                <li class="nav-item">
+                    <a class="pure-button" href="http://twitter.com/danieljayh"><i class="fa fa-twitter"></i> Twitter</a>
+                </li>
+                
+                
+                <li class="nav-item">
+                    <a class="pure-button" href="http://github.com/daniel-j-h "><i class="fa fa-github-alt"></i> github</a>
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</div>
+
+    <div class="content pure-u-1 pure-u-md-3-4">
+        <div>
+            
+            <div class="posts">
+                
+                <h1 class="content-subhead">22 Mar 2015, 13:05</h1>
+                <section class="post">
+                    <header class="post-header">
+
+                        <a href="https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/" class="post-title">Distributed Search Engine with Nanomsg and Bond</a>
+
+                        <p class="post-meta">
+                            
+                            
+                                under 
+                                <a class="post-category post-category-Distributed Systems" href="/categories/distributed-systems">Distributed Systems</a>
+                            
+                        </p>
+                    </header>
+
+                    <div class="post-description">
+                        
+
+<p>Exploring Microsoft&rsquo;s open source Bond framework by building a distributed search engine.
+I&rsquo;m using bond for serialization/deserialization and nanomsg for communication.</p>
+
+<p>The source is located at: <a href="https://github.com/daniel-j-h/DistributedSearch">https://github.com/daniel-j-h/DistributedSearch</a></p>
+
+<h2 id="motivation:1b84be3312b0ca180481a342bee08b53">Motivation</h2>
+
+<p>A few weeks ago Microsoft open sourced Bond, a cross-platform framework for serialization/deserialization, similar to Google&rsquo;s Protocol Buffers or Cap&rsquo;n Proto. I have some experience with Cap&rsquo;n Proto in particular, so this weekend I wanted to give Bond a try, since I had a few hours to spare.</p>
+
+<h3 id="a-distributed-search-engine:1b84be3312b0ca180481a342bee08b53">A Distributed Search Engine</h3>
+
+<p>Rob Pike introduced Go&rsquo;s concurrency patterns with an example of a Google-inspired search.
+The slides <a href="https://talks.golang.org/2012/concurrency.slide">are still available</a> and the talk is also on Youtube.
+Let&rsquo;s pick up this idea and implement it!</p>
+
+<p>The approach is roughly as follows:</p>
+
+<ul>
+<li>Query multiple services: for web results, video results, news and so on.</li>
+<li>Gather the results and show it to the user</li>
+<li>Replicate the services and query the replicas, too</li>
+<li>Do not wait forever, set timeouts</li>
+</ul>
+
+<p>This is the general idea. For more information please see the talk mentioned above.</p>
+
+<p>Now this project consists of the following: the communication part, for sending requests and receiving responses. I&rsquo;m using nanomsg for this.
+But first we have to serialize/deserialize our requests, i.e. the keyword to search for and the matches we receive from the services. I&rsquo;m using Bond for this.</p>
+
+<h2 id="nanomsg:1b84be3312b0ca180481a342bee08b53">Nanomsg</h2>
+
+<p><a href="http://nanomsg.org/">nanomsg</a> is a communication library, designed to provide you with patterns, such as Pub/Sub, Req/Rep, the Survey pattern and more.
+You may be familiar with ZeroMQ, nanomsg is more or less the same with a few exceptions. I&rsquo;m using nanomsg since I&rsquo;m already familiar with it.</p>
+
+<p>Now we design our distributed search engine as follows: a Search service issues user-provided queries against the WebSearch service, the VideoSearch service and so on. The results are then merged and shown to the user. For this we&rsquo;re using nanomsg&rsquo;s <a href="http://nanomsg.org/v0.4/nn_survey.7.html">Survey pattern</a>.
+The Survey pattern sends messages to multiple locations and gathers the responses.</p>
+
+<h3 id="surveyor:1b84be3312b0ca180481a342bee08b53">Surveyor</h3>
+
+<p>With the Survey pattern the so called Surveyor (our user-facing Search service) has to <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L28-L35">bind to the endpoint</a>, on which so called Respondents connect to.
+The Surveyor also sets a timeout after which the survey is over and subsequent results coming in are discarded for this particular survey.</p>
+
+<p>For every user query the Surveyor now does the following.
+Initially <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L54-L55">broadcast the request to the Respondents</a>.
+Then <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L67-L78">gather all results from the Respondents</a> as long as the timeout has not expired.</p>
+
+<h3 id="respondents:1b84be3312b0ca180481a342bee08b53">Respondents</h3>
+
+<p>Respondents (our WebSearch service, ImageSearch service, and so on) <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L94-L98">connect to the endpoint</a>, indicating they want to participate in surveys.
+For this the services spin in an eventloop, waiting for requests to process.
+Once they <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L115-L116">receive a request</a> they handle it (i.e. they search for results) and <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L138-L139">send matches for this query back</a>.</p>
+
+<p>Now that the basic communication is set up, we come to the serialization/deserialization part.</p>
+
+<h2 id="bond:1b84be3312b0ca180481a342bee08b53">Bond</h2>
+
+<p>Using <a href="https://github.com/Microsoft/bond">Microsoft&rsquo;s Bond framework</a>, we&rsquo;re able to serialize and deserialize our messages (i.e. the keyword to search for and the matches we receive) before sending the over the wire.
+For this we <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Messages.bond">define our messages</a> in a .bond schema.
+The bond schema compiler now <a href="https://github.com/daniel-j-h/DistributedSearch/blob/master/Makefile#L5-L6">lets us generate stubs</a> from this schema and they are included in the source repository.
+You probably want to augment the messages with more information, such as timestamps, ratings, and so on. For this project a simple schema is good enough.</p>
+
+<p>What&rsquo;s interesting now is the fact that the bond compiler is also able to spit out Python and C# stubs, which should make implementing the Surveyor and Respondents in other languages, too. But I did not try this, yet.</p>
+
+<h3 id="serialization:1b84be3312b0ca180481a342bee08b53">Serialization</h3>
+
+<p>Now what the Surveyor (our user-facing search service) does is to <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L45-L52">serialize the user-provided keyword</a> before handing it over to nanomsg.
+The Respondents (our WebSearch service, ImageSearch service, and so on) also <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L129-L134">serialize their results</a> before sending them back to us.</p>
+
+<h3 id="deserialization:1b84be3312b0ca180481a342bee08b53">Deserialization</h3>
+
+<p>For every query the Surveyor sends it has to <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L71-L77">deserialize the responses</a> nanomsg hands us during the survey.
+The respondents similarly have to first <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L121-L125">deserialize the keyword</a> the Surveyor sends us.</p>
+
+<p>Both serialization and deserialization are quite easy with Bond. Especially the (bytes, size)-tuple handling as required when interacting with nanomsg is not as bad as it was with Cap&rsquo;n Proto.
+Fortunately Kenton Varda improved the Cap&rsquo;n Proto library in this regard, after <a href="https://groups.google.com/forum/#!msg/capnproto/viZXnQ5iN50/B-hSgZ1yLWUJ">a discussion on the mailinglist</a>.</p>
+
+<h2 id="putting-it-all-together:1b84be3312b0ca180481a342bee08b53">Putting It All Together</h2>
+
+<p>With the serialization/deserialization and communication part done, all we have to do is put the pieces together.
+That is, wrap what we built and provide a few ways of customization.</p>
+
+<p>The user-facing Search service <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Search.cc#L11-L21">interacts with the user and queries the services</a>.
+The search services <a href="https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/WebSearch.cc#L11-L22">wait on queries and handle them</a> by sending dummy results for now.</p>
+
+<p>Now let&rsquo;s take a look at what we just built!</p>
+
+<h2 id="usage:1b84be3312b0ca180481a342bee08b53">Usage</h2>
+
+<p>Spin up the user-facing Search service and try making a query against it:</p>
+
+<pre><code>./Search
+</code></pre>
+
+<pre><code class="language-bash">Search&gt;
+How many horns does a unicorn have?
+
+Results&gt;
+</code></pre>
+
+<p>No results. Right, we do not have any search service running. Let&rsquo;s spin them up:</p>
+
+<pre><code>./WebSearch
+./VideoSearch
+</code></pre>
+
+<pre><code class="language-bash">Search&gt;
+How many horns does a unicorn have?
+
+Results&gt;
+ * First Video Result
+ * First Web Result
+ * Second Video Result
+ * Second Web Result
+</code></pre>
+
+<p>Cool!</p>
+
+<p>Now what makes this even more awesome is that nanomsg gives us a handful of nice properties.
+For example, our Search service does not care about what search services are currently connected.
+You are also able to disconnect or re-connect any search service at any time and the user only sees this in the results available.
+This also allows us to start up e.g. multiple WebSearch service replicas in case some are to slow to respond within the timout.
+Finally, nanomsg also <a href="http://nanomsg.org/v0.1/nn_setsockopt.3.html">handles auto-reconnects</a>.</p>
+
+<p>Furthermore we do not depend on the transport used. Check this out for a local IPC engine:</p>
+
+<pre><code>./Search &quot;ipc:///tmp/search.ipc&quot;
+./WebSearch &quot;ipc:///tmp/search.ipc&quot;
+</code></pre>
+
+<h2 id="summary:1b84be3312b0ca180481a342bee08b53">Summary</h2>
+
+<p>In building a distributed search engine you hopefully learnt something about communication and serialization.
+Using nanomsg and its Survey pattern makes the communication part quite easy.
+Bond makes the serialization and deserialization part simply to implement.</p>
+
+<p>The source is hosted on GitHub: <a href="https://github.com/daniel-j-h/DistributedSearch">https://github.com/daniel-j-h/DistributedSearch</a></p>
+
+                    </div>
+                </section>
+                
+            </div>
+            <div class="footer">
+    <div class="pure-menu pure-menu-horizontal pure-menu-open">
+        <ul>
+            <li>Powered by <a class="hugo" href="http://hugo.spf13.com/" target="_blank">hugo</a></li>
+        </ul>
+    </div>
+</div>
+
+        </div>
+    </div>
+</div>
+</body>
+</html>
