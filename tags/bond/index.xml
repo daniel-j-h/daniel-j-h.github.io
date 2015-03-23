@@ -32,14 +32,12 @@ I&amp;rsquo;m using bond for serialization/deserialization and nanomsg for commu
 &lt;h3 id=&#34;a-distributed-search-engine:1b84be3312b0ca180481a342bee08b53&#34;&gt;A Distributed Search Engine&lt;/h3&gt;
 
 &lt;p&gt;Rob Pike introduced Go&amp;rsquo;s concurrency patterns with an example of a Google-inspired search.
-The slides &lt;a href=&#34;https://talks.golang.org/2012/concurrency.slide#42&#34;&gt;are still available&lt;/a&gt;(please skim slides 42-52) and the talk is also on Youtube.&lt;/p&gt;
-
-&lt;p&gt;Let&amp;rsquo;s pick up this idea and implement it!&lt;/p&gt;
+The slides &lt;a href=&#34;https://talks.golang.org/2012/concurrency.slide#42&#34;&gt;are still available&lt;/a&gt; (please quickly skim slides 42-52) and the talk is also on Youtube. Let&amp;rsquo;s pick up this idea and implement it!&lt;/p&gt;
 
 &lt;p&gt;The approach taken is roughly as follows:&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;Query multiple services concurrently: for web results, video results, news and so on.&lt;/li&gt;
+&lt;li&gt;Query multiple services concurrently: for web results, video results, news and so on&lt;/li&gt;
 &lt;li&gt;Gather the results, merge and show them to the user&lt;/li&gt;
 &lt;li&gt;Replicate the services and query the replicas, too&lt;/li&gt;
 &lt;li&gt;Do not wait forever, set timeouts&lt;/li&gt;
@@ -47,7 +45,7 @@ The slides &lt;a href=&#34;https://talks.golang.org/2012/concurrency.slide#42&#3
 
 &lt;p&gt;This is the general idea. For more information please see the talk mentioned above.&lt;/p&gt;
 
-&lt;p&gt;Now this project consists of the following: the communication part, for sending requests and receiving responses. I&amp;rsquo;m using nanomsg for this.
+&lt;p&gt;Now this project consists of the following. The communication part, for sending requests and receiving responses. I&amp;rsquo;m using nanomsg for this.
 But first we have to serialize/deserialize our requests, i.e. the keyword to search for and the matches we receive from the services. I&amp;rsquo;m using Bond for this.&lt;/p&gt;
 
 &lt;h2 id=&#34;nanomsg:1b84be3312b0ca180481a342bee08b53&#34;&gt;Nanomsg&lt;/h2&gt;
@@ -56,43 +54,45 @@ But first we have to serialize/deserialize our requests, i.e. the keyword to sea
 You may be familiar with ZeroMQ, nanomsg is more or less the same with a few exceptions. I&amp;rsquo;m using nanomsg since I&amp;rsquo;m already familiar with it.&lt;/p&gt;
 
 &lt;p&gt;Now we design our distributed search engine as follows: a Search service issues user-provided queries concurrently against the WebSearch service, the VideoSearch service and so on. The results are then merged and shown to the user. For this we&amp;rsquo;re using nanomsg&amp;rsquo;s &lt;a href=&#34;http://nanomsg.org/v0.4/nn_survey.7.html&#34;&gt;Survey pattern&lt;/a&gt;.
-The Survey pattern sends messages to multiple locations and gathers the responses.&lt;/p&gt;
+The Survey pattern sends messages to multiple locations and gathers the responses. For our simple project this is good enough, but having a single Surveyor is not the best idea and you probably want to think about how to factor this into the design.&lt;/p&gt;
 
 &lt;h3 id=&#34;surveyor:1b84be3312b0ca180481a342bee08b53&#34;&gt;Surveyor&lt;/h3&gt;
 
-&lt;p&gt;With the Survey pattern the so called Surveyor (our user-facing Search service) has to &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L28-L35&#34;&gt;bind to the endpoint&lt;/a&gt;, on which so called Respondents connect to.
+&lt;p&gt;With the Survey pattern the so called Surveyor (our user-facing Search service) has to &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L28-L37&#34;&gt;bind to the endpoint&lt;/a&gt;, on which so called Respondents connect to.
 The Surveyor also sets a timeout after which the survey is over and subsequent results coming in are discarded for this particular survey.&lt;/p&gt;
 
 &lt;p&gt;For every user query the Surveyor now does the following.
-Initially &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L54-L55&#34;&gt;broadcast the request to the Respondents&lt;/a&gt;.
-Then &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L67-L78&#34;&gt;gather all results from the Respondents&lt;/a&gt; as long as the timeout has not expired.&lt;/p&gt;
+Initially &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L57-L58&#34;&gt;broadcast the request to the Respondents&lt;/a&gt;.
+Then &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L70&#34;&gt;gather all results from the Respondents&lt;/a&gt; as long as the timeout has not expired.&lt;/p&gt;
 
 &lt;h3 id=&#34;respondents:1b84be3312b0ca180481a342bee08b53&#34;&gt;Respondents&lt;/h3&gt;
 
-&lt;p&gt;Respondents (our WebSearch service, ImageSearch service, and so on) &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L94-L98&#34;&gt;connect to the endpoint&lt;/a&gt;, indicating they want to participate in surveys.
+&lt;p&gt;Respondents (our WebSearch service, ImageSearch service, and so on) &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L100-L104&#34;&gt;connect to the endpoint&lt;/a&gt;, indicating they want to participate in surveys.
 For this the services spin in an eventloop, waiting for requests to process.
-Once they &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L115-L116&#34;&gt;receive a request&lt;/a&gt; they handle it (i.e. they search for results) and &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L138-L139&#34;&gt;send matches for this query back&lt;/a&gt;.&lt;/p&gt;
+Once they &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L121-L122&#34;&gt;receive a request&lt;/a&gt; they handle it (i.e. they search for results) and &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L147-L148&#34;&gt;send matches for this query back&lt;/a&gt;.&lt;/p&gt;
 
 &lt;p&gt;Now that the basic communication is set up, let&amp;rsquo;s do the serialization/deserialization part.&lt;/p&gt;
 
 &lt;h2 id=&#34;bond:1b84be3312b0ca180481a342bee08b53&#34;&gt;Bond&lt;/h2&gt;
 
 &lt;p&gt;Using &lt;a href=&#34;https://github.com/Microsoft/bond&#34;&gt;Microsoft&amp;rsquo;s Bond framework&lt;/a&gt;, we&amp;rsquo;re able to serialize and deserialize our messages (i.e. the keyword to search for and the matches we receive) before sending them over the wire.
-For this we &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Messages.bond&#34;&gt;define our messages&lt;/a&gt; in a .bond schema.
-The bond schema compiler now &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/master/Makefile#L5-L6&#34;&gt;lets us generate stubs&lt;/a&gt; from this schema and they are included in the source repository.
+For this we &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Messages.bond&#34;&gt;define our messages&lt;/a&gt; in a .bond schema.
+The bond schema compiler now &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Makefile#L5-L6&#34;&gt;lets us generate stubs&lt;/a&gt; from this schema and they are included in the source repository.
 You probably want to augment the messages with more information, such as timestamps, ratings, and so on. For this project a simple schema is good enough.&lt;/p&gt;
 
 &lt;p&gt;What&amp;rsquo;s interesting now is the fact that the bond compiler is also able to spit out Python and C# stubs, which should make it possible to implement the Surveyor and Respondents in other languages, too. But I did not try this, yet.&lt;/p&gt;
 
 &lt;h3 id=&#34;serialization:1b84be3312b0ca180481a342bee08b53&#34;&gt;Serialization&lt;/h3&gt;
 
-&lt;p&gt;Now what the Surveyor (our user-facing search service) does is to &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L45-L52&#34;&gt;serialize the user-provided keyword&lt;/a&gt; before handing it over to nanomsg.
-The Respondents (our WebSearch service, ImageSearch service, and so on) also &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L129-L134&#34;&gt;serialize their results&lt;/a&gt; before sending them back to us.&lt;/p&gt;
+&lt;p&gt;Now what the Surveyor (our user-facing search service) does is to &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L47-L54&#34;&gt;serialize the user-provided keyword&lt;/a&gt; before handing it over to nanomsg.
+The Respondents (our WebSearch service, ImageSearch service, and so on) also &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L138-L145&#34;&gt;serialize their results&lt;/a&gt; before sending them back to us.&lt;/p&gt;
 
 &lt;h3 id=&#34;deserialization:1b84be3312b0ca180481a342bee08b53&#34;&gt;Deserialization&lt;/h3&gt;
 
-&lt;p&gt;For every query the Surveyor sends it has to &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L71-L77&#34;&gt;deserialize the responses&lt;/a&gt; nanomsg hands us during the survey.
-The respondents similarly have to first &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Service.h#L121-L125&#34;&gt;deserialize the keyword&lt;/a&gt; the Surveyor sends us.&lt;/p&gt;
+&lt;p&gt;For every query the Surveyor sends it has to &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L76-L80&#34;&gt;deserialize the responses&lt;/a&gt; nanomsg hands us during the survey.
+The respondents similarly have to first &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L129-L133&#34;&gt;deserialize the keyword&lt;/a&gt; the Surveyor sends us.&lt;/p&gt;
+
+&lt;p&gt;The types we used in the schema now integrate perfectly into the language. Therefore &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L82-L83&#34;&gt;merging responses&lt;/a&gt; on the Surveyor side is quite easy, using set semantics. &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L139&#34;&gt;Populating&lt;/a&gt; the data structure with responses on the Respondent&amp;rsquo;s side can be done in the same way.&lt;/p&gt;
 
 &lt;p&gt;Both serialization and deserialization are quite easy with Bond. Especially the (bytes, size)-tuple handling as required when interacting with nanomsg is not as bad as it was with Cap&amp;rsquo;n Proto.
 Fortunately Kenton Varda improved the Cap&amp;rsquo;n Proto library in this regard, after &lt;a href=&#34;https://groups.google.com/forum/#!msg/capnproto/viZXnQ5iN50/B-hSgZ1yLWUJ&#34;&gt;a discussion on the mailinglist&lt;/a&gt;.&lt;/p&gt;
@@ -102,12 +102,9 @@ Fortunately Kenton Varda improved the Cap&amp;rsquo;n Proto library in this rega
 &lt;p&gt;With the serialization/deserialization and communication part done, all we have to do is put the pieces together.
 That is, wrap what we built and provide a few ways of customization.&lt;/p&gt;
 
-&lt;p&gt;The user-facing Search service &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/Search.cc#L11-L21&#34;&gt;interacts with the user and queries the services&lt;/a&gt;.
-The search services &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/27fdee0216225f04514ff48bbd047be29524d961/WebSearch.cc#L11-L22&#34;&gt;wait for queries and handle them&lt;/a&gt; by sending dummy results for now.&lt;/p&gt;
-
-&lt;p&gt;Now let&amp;rsquo;s take a look at what we just built!&lt;/p&gt;
-
-&lt;h2 id=&#34;usage:1b84be3312b0ca180481a342bee08b53&#34;&gt;Usage&lt;/h2&gt;
+&lt;p&gt;The user-facing Search service &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Search.cc#L10-L20&#34;&gt;interacts with the user and queries the services&lt;/a&gt;.
+The search services &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/WebSearch.cc#L9-L20&#34;&gt;wait for queries and handle them&lt;/a&gt; by sending dummy results for now.
+Now let&amp;rsquo;s take a look at what we just built!&lt;/p&gt;
 
 &lt;p&gt;Spin up the user-facing Search service and try issuing queries against it:&lt;/p&gt;
 
