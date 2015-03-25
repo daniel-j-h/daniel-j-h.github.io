@@ -71,6 +71,17 @@ Then &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84c
 For this the services spin in an eventloop, waiting for requests to process.
 Once they &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L121-L122&#34;&gt;receive a request&lt;/a&gt; they handle it (i.e. they search for results) and &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L147-L148&#34;&gt;send matches for this query back&lt;/a&gt;.&lt;/p&gt;
 
+&lt;pre&gt;&lt;code class=&#34;language-nohighlight&#34;&gt;
+            Surveyor
+         bind(localhost)
+        /               \
+       /                 \
+      /                   \
+connect(Surveyor)    connect(Surveyor)
+   Respondent           Respondent
+
+&lt;/code&gt;&lt;/pre&gt;
+
 &lt;p&gt;Now that the basic communication is set up, let&amp;rsquo;s do the serialization/deserialization part.&lt;/p&gt;
 
 &lt;h2 id=&#34;bond:1b84be3312b0ca180481a342bee08b53&#34;&gt;Bond&lt;/h2&gt;
@@ -123,6 +134,15 @@ Results&amp;gt;
 ./VideoSearch
 &lt;/code&gt;&lt;/pre&gt;
 
+&lt;p&gt;Resulting in the following service tree:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;           Search
+          /      \
+    WebSearch  VideoSearch
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And interact with the user interface:&lt;/p&gt;
+
 &lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;Search&amp;gt;
 How many horns does a unicorn have?
 
@@ -163,6 +183,16 @@ In this case, the Respondent also becomes a Surveyor for its local Respondents. 
 ./VideoSearch &amp;quot;tcp://localhost:9995&amp;quot;
 ./RecursiveSearch &amp;quot;tcp://*:9996&amp;quot; &amp;quot;tcp://localhost:9995&amp;quot;
 ./WebSearch &amp;quot;tcp://localhost:9996&amp;quot;
+./ImageSearch &amp;quot;tcp://localhost:9996&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Resulting in the following service tree:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;           Search
+          /      \
+  VideoSearch   RecursiveSearch
+                 /           \
+	     WebSearch    ImageSearch
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;With this setup, Search is the tree&amp;rsquo;s root, with VideoSearch and RecursiveSearch attached to it and WebSearch attached to the RecursiveSearch node. Attaching more services can be done transparently on each layer of the tree. Just attach them to the subtree&amp;rsquo;s specific root-service.&lt;/p&gt;
