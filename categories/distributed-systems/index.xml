@@ -135,6 +135,8 @@ Results&amp;gt;
 
 &lt;p&gt;Great! We get results back from those two services, without even noticing the connection establishment and communication done in the background during which our program was active at all time.&lt;/p&gt;
 
+&lt;h3 id=&#34;communication-guarantees:1b84be3312b0ca180481a342bee08b53&#34;&gt;Communication Guarantees&lt;/h3&gt;
+
 &lt;p&gt;Now what makes this even more awesome is that nanomsg guarantees us a handful of nice properties.
 For example, our user-facing Search service does not care about what services are currently available.
 You are also able to disconnect or re-connect any service at any time and the user only sees this in the results available.
@@ -146,6 +148,26 @@ Finally, nanomsg also &lt;a href=&#34;http://nanomsg.org/v0.1/nn_setsockopt.3.ht
 &lt;pre&gt;&lt;code&gt;./Search &amp;quot;ipc:///tmp/search.ipc&amp;quot;
 ./WebSearch &amp;quot;ipc:///tmp/search.ipc&amp;quot;
 &lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;recursively-building-service-trees:1b84be3312b0ca180481a342bee08b53&#34;&gt;Recursively Building Service Trees&lt;/h3&gt;
+
+&lt;p&gt;Throughout this project we assumed having a single Surveyor and multiple Respondents attached to it.
+But what if a Respondent, e.g. a WebSearch service, has to query multiple WebSearch services recursively itself.
+In this case, the Respondent also becomes a Surveyor for its local Respondents. This makes it possible to recursively build a tree of services.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/commit/84c361d336033b5a669b7b37ccc3b0773cb62b54#diff-3&#34;&gt;Introducing&lt;/a&gt; the RecursiveSearch service. The idea is the following: both &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L10-L11&#34;&gt;bind an connect to endpoints&lt;/a&gt;. The bind endpoint specifies the location Respondents further down the tree have to connect to. The connect endpoint specifies where to send the responses from those Respondents. By &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L13-L24&#34;&gt;passing on the request&lt;/a&gt; to all attached services we therefore act as a proxy, broadcasting the request to the Respondents attached to us. To guarantee timely delivery of results up the tree, the survey&amp;rsquo;s timeout has to be smaller going down the tree. Leveraging the abstractions built so far makes an implementation possible in only a few lines of code.&lt;/p&gt;
+
+&lt;p&gt;We are now able to recursively build a tree of services:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;./Search &amp;quot;tcp://*:9995&amp;quot;
+./VideoSearch &amp;quot;tcp://localhost:9995&amp;quot;
+./RecursiveSearch &amp;quot;tcp://*:9996&amp;quot; &amp;quot;tcp://localhost:9995&amp;quot;
+./WebSearch &amp;quot;tcp://localhost:9996&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;With this setup, Search is the tree&amp;rsquo;s root, with VideoSearch and RecursiveSearch attached to it and WebSearch attached to the RecursiveSearch node. Attaching more services can be done transparently on each layer of the tree. Just attach them to the subtree&amp;rsquo;s specific root-service.&lt;/p&gt;
+
+&lt;p&gt;If you try the recursive example on a single machine, you have to change the port for each layer, otherwise there would be no way to distinguish the root from internal tree nodes. To be more precise, each subtree&amp;rsquo;s root has to bind to a different port.&lt;/p&gt;
 
 &lt;h2 id=&#34;summary:1b84be3312b0ca180481a342bee08b53&#34;&gt;Summary&lt;/h2&gt;
 
