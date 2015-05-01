@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="blog blog blog">
+
+    <title>Haskell &middot; Daniel J. H.</title>
+    <link href='//fonts.googleapis.com/css?family=Source+Sans+Pro:400,700|Oxygen:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="/css/pure-min.css">
+    
+    
+        <link rel="stylesheet" href="/css/grids-responsive-min.css">
+    
+
+    
+    
+        <link rel="stylesheet" href="/css/blog.css">
+    
+    <link href="//netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/highlight.min.css">
+    <script src="/js/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body>
+
+
+<div id="layout" class="pure-g">
+    <div class="sidebar pure-u-1 pure-u-md-1-4">
+    <div class="header">
+        <hgroup>
+            <h1 class="brand-title"><a href="https://daniel-j-h.github.io">Daniel J. H.</a></h1>
+            <h2 class="brand-tagline"> blog blog blog </h2>
+        </hgroup>
+
+        <nav class="nav">
+            <ul class="nav-list">
+                
+                <li class="nav-item">
+                    <a class="pure-button" href="http://twitter.com/danieljayh"><i class="fa fa-twitter"></i> Twitter</a>
+                </li>
+                
+                
+                <li class="nav-item">
+                    <a class="pure-button" href="http://github.com/daniel-j-h "><i class="fa fa-github-alt"></i> github</a>
+                </li>
+                
+            </ul>
+        </nav>
+    </div>
+</div>
+
+    <div class="content pure-u-1 pure-u-md-3-4">
+        <div>
+            
+            <div class="posts">
+                
+                <h1 class="content-subhead">01 May 2015, 19:49</h1>
+                <section class="post">
+                    <header class="post-header">
+
+                        <a href="https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/" class="post-title">An Intuitive Use-Case For Monadic Bind And Kleisli Composition</a>
+
+                        <p class="post-meta">
+                            
+                            
+                                under 
+                                <a class="post-category post-category-Functional Programming" href="/categories/functional-programming">Functional Programming</a>
+                            
+                        </p>
+                    </header>
+
+                    <div class="post-description">
+                        
+
+<p>In which I accidentally stumble upon Monadic Bind and Kleisli Composition while parallelizing my C++14 code with Intel TBB&rsquo;s pipeline. This is meant to help you connecting concepts from various fields rather than diving into too much theory.</p>
+
+<h2 id="motivation:286e9a51e15d74f49bfe6192ec7e59b9">Motivation</h2>
+
+<p>In my <a href="https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/">post about a Distributed Search Engine</a> I&rsquo;m using the so called survey communication pattern, which works roughly as follows:</p>
+
+<ul>
+<li>Send request to multiple Respondents</li>
+<li>Gather and merge responses</li>
+</ul>
+
+<p>In pseudocode with the function&rsquo;s declarations this may look like:</p>
+
+<pre><code>Blob getMemoryBlobFromNetwork();
+Response deserializeBlob(Blob);
+
+
+ResponseSet responses;
+
+sendSurveyRequest(&quot;Tell me the current time in CEST&quot;);
+
+while not surveyDeadlineReached() {
+  Blob blob0 = getMemoryBlobFromNetwork();
+  Response response = deserializeBlob(blob0);
+  responses.merge(response);
+}
+</code></pre>
+
+<p>This works rather well, but there is room for improvement.
+Although the Respondents send their responses concurrently, we handle responses one after the other.
+That is we first receive a response as memory blob from the networking layer.
+We then deserialize it, after which we merge it into a set of responses.
+It is not until then that we turn our attention to the next response.</p>
+
+<p>Notice how the next function&rsquo;s input depends on the current function&rsquo;s output.
+With this kind of dependency the Pipeline Pattern can be easily introduced, with the goal of running the pipeline&rsquo;s stages in parallel, increasing the system&rsquo;s throughput.</p>
+
+<p>With three responses the pipeline may look as follows:</p>
+
+<pre><code class="language-bash">      step 1    |     step 2    |     step 3    |     step 4    |     step 5    |
+    -----------------------------------------------------------------------------
+
+    receive()   |   receive()   |   receive()   |
+                | deserialize() | deserialize() | deserialize() |
+		                |    merge()    |    merge()    |    merge()    |
+</code></pre>
+
+<p>You can see how we are now able to receive(), deserialize() and merge() potentially in parallel running on multiple threads.</p>
+
+<p>In the Distributed Search Engine C++14 code this can be accomplished rather easily, using Intel TBB&rsquo;s pipeline. I pushed a <a href="https://github.com/daniel-j-h/DistributedSearch/commit/97224b179fdc050dc219287616e8d3073e0e0a8c">commit</a> with this to the original Distributed Search Engine repository. See <a href="https://github.com/daniel-j-h/DistributedSearch/blob/97224b179fdc050dc219287616e8d3073e0e0a8c/Service.cc#L110-L114">the code</a> for yourself.</p>
+
+<h2 id="failures-and-how-to-propagate-them:286e9a51e15d74f49bfe6192ec7e59b9">Failures And How To Propagate Them</h2>
+
+<p>Failures happen. We may not be able to deserialize a request.
+Maybe we have additional uncompress or decrypt stages that may fail.
+But what happens if an exception occurs in a particular pipeline stage? With the above implementation this would bring down the whole pipeline.</p>
+
+<p>What we really want from our functions is to express a computation that may fail.
+That is, instead of the exception throwing functions we want them to wrap their response in something that is able to express failure, such as the generic Optional, also known as Maybe Monad. Here are the declarations with this in mind:</p>
+
+<pre><code>  Optional&lt;Blob&gt; getMemoryBlobFromNetwork();
+  Optional&lt;Blob&gt; uncompressBlob(Blob blob);
+  Optional&lt;Blob&gt; decryptBlob(Blob blob);
+  Optional&lt;Response&gt; deserializeBlob(Blob blob);
+</code></pre>
+
+<p>Perfect! But wait, now the types do not match!
+Our functions do not expect arguments wrapped in an Optional but instead types such as a raw Blob. What we have to do is convert from Optionals to their value type by checking for success and then passing the value type on:</p>
+
+<pre><code>while not surveyDeadlineReached() {
+  Optional&lt;Blob&gt; blob0 = getMemoryBlobFromNetwork();
+  if (blob0) {
+    Optional&lt;Blob&gt; blob1 = decryptBlob(*blob0);
+
+    if (blob1) {
+      Optional&lt;Blob&gt; blob2 = uncompressBlob(*blob1);
+
+      if (blob2) {
+        Optional&lt;Response&gt; response = deserializeBlob(*blob2);
+
+        if (response) {
+          responses.merge(*response);
+        }
+      }
+    }
+  }
+}
+</code></pre>
+
+<p>This is horrible error handling. There has to be a better way. And there is.
+Note: you may flatten this kind of error handling with guards, but the overhead remains.</p>
+
+<p>First let us switch to Haskell for pseudocode as I don&rsquo;t want to show you the C++ that is required for this.
+Our dummy functions representing the pipeline stages now take integers and may return an optional of integer, Maybe Integer that is:</p>
+
+<pre><code class="language-haskell">-- :: Integer -&gt; Maybe Integer
+f0 = \x -&gt; Just (x + 1)
+f1 = \x -&gt; Just (x + 10)
+f2 = \x -&gt; Just (x + 100)
+</code></pre>
+
+<p>And a function that always fails, to provoke errors later on:</p>
+
+<pre><code class="language-haskell">-- :: Integer -&gt; Maybe Integer
+g0 = \_ -&gt; Nothing
+</code></pre>
+
+<p>What we still need is a way to convert our functions taking integers to functions taking a Maybe Integer, checking for success, and only then calling the plain function. That is, the type has to be similar to:</p>
+
+<pre><code class="language-haskell">Maybe Integer -&gt; (Integer -&gt; Maybe Integer) -&gt; Maybe Integer
+</code></pre>
+
+<p>This looks suspiciously similar to what Monadic Bind does. Take a look:</p>
+
+<pre><code class="language-haskell">(&gt;&gt;=) :: m a -&gt; (a -&gt; m b) -&gt; m b
+</code></pre>
+
+<p>Let&rsquo;s see it in action, using it for passing integers wrapped as Maybe Integer to our functions taking an integer:</p>
+
+<pre><code class="language-haskell">Just 0 &gt;&gt;= f0
+Just 1
+
+Just 0 &gt;&gt;= f0 &gt;&gt;= f1 &gt;&gt;= f2
+Just 111
+
+Just 0 &gt;&gt;= f0 &gt;&gt;= g0 &gt;&gt;= f1 &gt;&gt;= f2
+Nothing
+</code></pre>
+
+<p>Monadic Bind for the Maybe monad does exactly what we need:</p>
+
+<ul>
+<li>in case the passed in Maybe Integer is a Just we go on executing the function on its value</li>
+<li>in case the passed in Maybe Integer is Nothing we do not execute the function but instantaneously return Nothing</li>
+</ul>
+
+<p>This is exactly the semantic we want for our motivating pipeline example!</p>
+
+<h2 id="composing-propagating-pipeline-stages:286e9a51e15d74f49bfe6192ec7e59b9">Composing Propagating Pipeline Stages</h2>
+
+<p>Using Maybe&rsquo;s Monadic Bind as above allows us to adapt our functions without the need to local error handling. Great! But how do we compose a pipeline then?
+We could directly use Monadic Bind or think about the types involved.
+Say we take two functions and want to compose them:</p>
+
+<pre><code class="language-haskell">(Integer -&gt; Maybe Integer) -&gt; (Integer -&gt; Maybe Integer) -&gt; Integer -&gt; Maybe Integer
+</code></pre>
+
+<p>That is, with two functions and an integer we start off passing the integer to the first function, then doing our Monadic Bind trick from above, potentially passing the result to the second function, returning the result.</p>
+
+<p>That is what the so called Kleisli composition operator does:</p>
+
+<pre><code class="language-haskell">(&gt;=&gt;) :: Monad m =&gt; (a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</code></pre>
+
+<p>Look:</p>
+
+<pre><code class="language-haskell">pipeline = f0 &gt;=&gt; f1 &gt;=&gt; f2
+pipeline :: Integer -&gt; Maybe Integer
+
+Just 1 &gt;&gt;= pipeline
+Just 112
+</code></pre>
+
+<p>Equipped with Monadic Bind and Kleisli Composition we may go back to our C++14 code base and implement the ideas there. I&rsquo;m not going to show you how this can be done here, as it requires some more boilerplate code to make the compiler happy &ndash; as usual.</p>
+
+<h2 id="further-remarks:286e9a51e15d74f49bfe6192ec7e59b9">Further Remarks</h2>
+
+<p>You probably want to propagate an explanation of what exactly went wrong in case of failure.
+This can be done switching out the Maybe Integer for an Either PipelineError Integer, with PipelineError being a sum type of the pipeline stage&rsquo;s potential errors.</p>
+
+<p>See Scott Wlaschin&rsquo;s slides on monadic bind and what he calls &ldquo;Railway Oriented Programming&rdquo;:</p>
+
+<ul>
+<li><a href="http://www.slideshare.net/ScottWlaschin/fp-patterns-ndc-london2014">Functional Programming Patterns (NDC London 2014)</a></li>
+<li><a href="http://www.slideshare.net/ScottWlaschin/railway-oriented-programming">Railway Oriented Programming</a></li>
+</ul>
+
+<p>For more about monads, see Learn You A Haskell <a href="http://learnyouahaskell.com/chapters">Chapter 12 and 13</a>.</p>
+
+<p>Haskell documentation:</p>
+
+<ul>
+<li><a href="https://hackage.haskell.org/package/base-4.6.0.1/docs/Control-Monad.html#v:-62--62--61-">Monadic Bind, &gt;&gt;=</a></li>
+<li><a href="https://hackage.haskell.org/package/base-4.6.0.1/docs/Control-Monad.html#v:-62--61--62-">Kleisli Composition, &gt;=&gt;</a></li>
+</ul>
+
+<h2 id="summary:286e9a51e15d74f49bfe6192ec7e59b9">Summary</h2>
+
+<p>In using Monadic Bind and Kleisli Composition we not only composed error propagating pipeline stages, but we did this in a way that keeps the code clean and shows its intention to the reader. Being able to see patterns such as functional composition in code that may look totally unrelated and not functional at all &ndash; say C++ in the context of parallelization &ndash; helps tremendously.</p>
+
+                    </div>
+                </section>
+                
+            </div>
+            <div class="footer">
+    <div class="pure-menu pure-menu-horizontal pure-menu-open">
+        <ul>
+            <li>Powered by <a class="hugo" href="http://hugo.spf13.com/" target="_blank">hugo</a></li>
+        </ul>
+    </div>
+</div>
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -9,8 +9,208 @@
     
     
     
-    <lastBuildDate>Sun, 22 Mar 2015 13:05:45 CET</lastBuildDate>
+    <lastBuildDate>Fri, 01 May 2015 19:49:27 CEST</lastBuildDate>
     <atom:link href="https://daniel-j-h.github.io/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>An Intuitive Use-Case For Monadic Bind And Kleisli Composition</title>
+      <link>https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/</link>
+      <pubDate>Fri, 01 May 2015 19:49:27 CEST</pubDate>
+      
+      <guid>https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/</guid>
+      <description>
+
+&lt;p&gt;In which I accidentally stumble upon Monadic Bind and Kleisli Composition while parallelizing my C++14 code with Intel TBB&amp;rsquo;s pipeline. This is meant to help you connecting concepts from various fields rather than diving into too much theory.&lt;/p&gt;
+
+&lt;h2 id=&#34;motivation:286e9a51e15d74f49bfe6192ec7e59b9&#34;&gt;Motivation&lt;/h2&gt;
+
+&lt;p&gt;In my &lt;a href=&#34;https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/&#34;&gt;post about a Distributed Search Engine&lt;/a&gt; I&amp;rsquo;m using the so called survey communication pattern, which works roughly as follows:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Send request to multiple Respondents&lt;/li&gt;
+&lt;li&gt;Gather and merge responses&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;In pseudocode with the function&amp;rsquo;s declarations this may look like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Blob getMemoryBlobFromNetwork();
+Response deserializeBlob(Blob);
+
+
+ResponseSet responses;
+
+sendSurveyRequest(&amp;quot;Tell me the current time in CEST&amp;quot;);
+
+while not surveyDeadlineReached() {
+  Blob blob0 = getMemoryBlobFromNetwork();
+  Response response = deserializeBlob(blob0);
+  responses.merge(response);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This works rather well, but there is room for improvement.
+Although the Respondents send their responses concurrently, we handle responses one after the other.
+That is we first receive a response as memory blob from the networking layer.
+We then deserialize it, after which we merge it into a set of responses.
+It is not until then that we turn our attention to the next response.&lt;/p&gt;
+
+&lt;p&gt;Notice how the next function&amp;rsquo;s input depends on the current function&amp;rsquo;s output.
+With this kind of dependency the Pipeline Pattern can be easily introduced, with the goal of running the pipeline&amp;rsquo;s stages in parallel, increasing the system&amp;rsquo;s throughput.&lt;/p&gt;
+
+&lt;p&gt;With three responses the pipeline may look as follows:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;      step 1    |     step 2    |     step 3    |     step 4    |     step 5    |
+    -----------------------------------------------------------------------------
+
+    receive()   |   receive()   |   receive()   |
+                | deserialize() | deserialize() | deserialize() |
+		                |    merge()    |    merge()    |    merge()    |
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;You can see how we are now able to receive(), deserialize() and merge() potentially in parallel running on multiple threads.&lt;/p&gt;
+
+&lt;p&gt;In the Distributed Search Engine C++14 code this can be accomplished rather easily, using Intel TBB&amp;rsquo;s pipeline. I pushed a &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/commit/97224b179fdc050dc219287616e8d3073e0e0a8c&#34;&gt;commit&lt;/a&gt; with this to the original Distributed Search Engine repository. See &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/97224b179fdc050dc219287616e8d3073e0e0a8c/Service.cc#L110-L114&#34;&gt;the code&lt;/a&gt; for yourself.&lt;/p&gt;
+
+&lt;h2 id=&#34;failures-and-how-to-propagate-them:286e9a51e15d74f49bfe6192ec7e59b9&#34;&gt;Failures And How To Propagate Them&lt;/h2&gt;
+
+&lt;p&gt;Failures happen. We may not be able to deserialize a request.
+Maybe we have additional uncompress or decrypt stages that may fail.
+But what happens if an exception occurs in a particular pipeline stage? With the above implementation this would bring down the whole pipeline.&lt;/p&gt;
+
+&lt;p&gt;What we really want from our functions is to express a computation that may fail.
+That is, instead of the exception throwing functions we want them to wrap their response in something that is able to express failure, such as the generic Optional, also known as Maybe Monad. Here are the declarations with this in mind:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;  Optional&amp;lt;Blob&amp;gt; getMemoryBlobFromNetwork();
+  Optional&amp;lt;Blob&amp;gt; uncompressBlob(Blob blob);
+  Optional&amp;lt;Blob&amp;gt; decryptBlob(Blob blob);
+  Optional&amp;lt;Response&amp;gt; deserializeBlob(Blob blob);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Perfect! But wait, now the types do not match!
+Our functions do not expect arguments wrapped in an Optional but instead types such as a raw Blob. What we have to do is convert from Optionals to their value type by checking for success and then passing the value type on:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;while not surveyDeadlineReached() {
+  Optional&amp;lt;Blob&amp;gt; blob0 = getMemoryBlobFromNetwork();
+  if (blob0) {
+    Optional&amp;lt;Blob&amp;gt; blob1 = decryptBlob(*blob0);
+
+    if (blob1) {
+      Optional&amp;lt;Blob&amp;gt; blob2 = uncompressBlob(*blob1);
+
+      if (blob2) {
+        Optional&amp;lt;Response&amp;gt; response = deserializeBlob(*blob2);
+
+        if (response) {
+          responses.merge(*response);
+        }
+      }
+    }
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This is horrible error handling. There has to be a better way. And there is.
+Note: you may flatten this kind of error handling with guards, but the overhead remains.&lt;/p&gt;
+
+&lt;p&gt;First let us switch to Haskell for pseudocode as I don&amp;rsquo;t want to show you the C++ that is required for this.
+Our dummy functions representing the pipeline stages now take integers and may return an optional of integer, Maybe Integer that is:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;-- :: Integer -&amp;gt; Maybe Integer
+f0 = \x -&amp;gt; Just (x + 1)
+f1 = \x -&amp;gt; Just (x + 10)
+f2 = \x -&amp;gt; Just (x + 100)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;And a function that always fails, to provoke errors later on:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;-- :: Integer -&amp;gt; Maybe Integer
+g0 = \_ -&amp;gt; Nothing
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;What we still need is a way to convert our functions taking integers to functions taking a Maybe Integer, checking for success, and only then calling the plain function. That is, the type has to be similar to:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;Maybe Integer -&amp;gt; (Integer -&amp;gt; Maybe Integer) -&amp;gt; Maybe Integer
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This looks suspiciously similar to what Monadic Bind does. Take a look:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;(&amp;gt;&amp;gt;=) :: m a -&amp;gt; (a -&amp;gt; m b) -&amp;gt; m b
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let&amp;rsquo;s see it in action, using it for passing integers wrapped as Maybe Integer to our functions taking an integer:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;Just 0 &amp;gt;&amp;gt;= f0
+Just 1
+
+Just 0 &amp;gt;&amp;gt;= f0 &amp;gt;&amp;gt;= f1 &amp;gt;&amp;gt;= f2
+Just 111
+
+Just 0 &amp;gt;&amp;gt;= f0 &amp;gt;&amp;gt;= g0 &amp;gt;&amp;gt;= f1 &amp;gt;&amp;gt;= f2
+Nothing
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Monadic Bind for the Maybe monad does exactly what we need:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;in case the passed in Maybe Integer is a Just we go on executing the function on its value&lt;/li&gt;
+&lt;li&gt;in case the passed in Maybe Integer is Nothing we do not execute the function but instantaneously return Nothing&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;This is exactly the semantic we want for our motivating pipeline example!&lt;/p&gt;
+
+&lt;h2 id=&#34;composing-propagating-pipeline-stages:286e9a51e15d74f49bfe6192ec7e59b9&#34;&gt;Composing Propagating Pipeline Stages&lt;/h2&gt;
+
+&lt;p&gt;Using Maybe&amp;rsquo;s Monadic Bind as above allows us to adapt our functions without the need to local error handling. Great! But how do we compose a pipeline then?
+We could directly use Monadic Bind or think about the types involved.
+Say we take two functions and want to compose them:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;(Integer -&amp;gt; Maybe Integer) -&amp;gt; (Integer -&amp;gt; Maybe Integer) -&amp;gt; Integer -&amp;gt; Maybe Integer
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;That is, with two functions and an integer we start off passing the integer to the first function, then doing our Monadic Bind trick from above, potentially passing the result to the second function, returning the result.&lt;/p&gt;
+
+&lt;p&gt;That is what the so called Kleisli composition operator does:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;(&amp;gt;=&amp;gt;) :: Monad m =&amp;gt; (a -&amp;gt; m b) -&amp;gt; (b -&amp;gt; m c) -&amp;gt; a -&amp;gt; m c
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Look:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-haskell&#34;&gt;pipeline = f0 &amp;gt;=&amp;gt; f1 &amp;gt;=&amp;gt; f2
+pipeline :: Integer -&amp;gt; Maybe Integer
+
+Just 1 &amp;gt;&amp;gt;= pipeline
+Just 112
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Equipped with Monadic Bind and Kleisli Composition we may go back to our C++14 code base and implement the ideas there. I&amp;rsquo;m not going to show you how this can be done here, as it requires some more boilerplate code to make the compiler happy &amp;ndash; as usual.&lt;/p&gt;
+
+&lt;h2 id=&#34;further-remarks:286e9a51e15d74f49bfe6192ec7e59b9&#34;&gt;Further Remarks&lt;/h2&gt;
+
+&lt;p&gt;You probably want to propagate an explanation of what exactly went wrong in case of failure.
+This can be done switching out the Maybe Integer for an Either PipelineError Integer, with PipelineError being a sum type of the pipeline stage&amp;rsquo;s potential errors.&lt;/p&gt;
+
+&lt;p&gt;See Scott Wlaschin&amp;rsquo;s slides on monadic bind and what he calls &amp;ldquo;Railway Oriented Programming&amp;rdquo;:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/ScottWlaschin/fp-patterns-ndc-london2014&#34;&gt;Functional Programming Patterns (NDC London 2014)&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.slideshare.net/ScottWlaschin/railway-oriented-programming&#34;&gt;Railway Oriented Programming&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;For more about monads, see Learn You A Haskell &lt;a href=&#34;http://learnyouahaskell.com/chapters&#34;&gt;Chapter 12 and 13&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Haskell documentation:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://hackage.haskell.org/package/base-4.6.0.1/docs/Control-Monad.html#v:-62--62--61-&#34;&gt;Monadic Bind, &amp;gt;&amp;gt;=&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://hackage.haskell.org/package/base-4.6.0.1/docs/Control-Monad.html#v:-62--61--62-&#34;&gt;Kleisli Composition, &amp;gt;=&amp;gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;summary:286e9a51e15d74f49bfe6192ec7e59b9&#34;&gt;Summary&lt;/h2&gt;
+
+&lt;p&gt;In using Monadic Bind and Kleisli Composition we not only composed error propagating pipeline stages, but we did this in a way that keeps the code clean and shows its intention to the reader. Being able to see patterns such as functional composition in code that may look totally unrelated and not functional at all &amp;ndash; say C++ in the context of parallelization &amp;ndash; helps tremendously.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Distributed Search Engine with Nanomsg and Bond</title>
@@ -175,7 +375,7 @@ Finally, nanomsg also &lt;a href=&#34;http://nanomsg.org/v0.1/nn_setsockopt.3.ht
 But what if a Respondent, e.g. a WebSearch service, has to query multiple WebSearch services recursively itself.
 In this case, the Respondent also becomes a Surveyor for its local Respondents. This makes it possible to recursively build a tree of services.&lt;/p&gt;
 
-&lt;p&gt;&lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/commit/84c361d336033b5a669b7b37ccc3b0773cb62b54#diff-3&#34;&gt;Introducing&lt;/a&gt; the RecursiveSearch service. The idea is the following: both &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L10-L11&#34;&gt;bind an connect to endpoints&lt;/a&gt;. The bind endpoint specifies the location Respondents further down the tree have to connect to. The connect endpoint specifies where to send the responses from those Respondents. By &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L13-L24&#34;&gt;passing on the request&lt;/a&gt; to all attached services we therefore act as a proxy, broadcasting the request to the Respondents attached to us. To guarantee timely delivery of results up the tree, the survey&amp;rsquo;s timeout has to be smaller going down the tree. Leveraging the abstractions built so far makes an implementation possible in only a few lines of code.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/commit/84c361d336033b5a669b7b37ccc3b0773cb62b54#diff-3&#34;&gt;Introducing&lt;/a&gt; the RecursiveSearch service. The idea is the following: both &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L10-L11&#34;&gt;bind and connect to endpoints&lt;/a&gt;. The bind endpoint specifies the location Respondents further down the tree have to connect to. The connect endpoint specifies where to send the responses from those Respondents. By &lt;a href=&#34;https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L13-L24&#34;&gt;passing on the request&lt;/a&gt; to all attached services we therefore act as a proxy, broadcasting the request to the Respondents attached to us. To guarantee timely delivery of results up the tree, the survey&amp;rsquo;s timeout has to be smaller going down the tree. Leveraging the abstractions built so far makes an implementation possible in only a few lines of code.&lt;/p&gt;
 
 &lt;p&gt;We are now able to recursively build a tree of services:&lt;/p&gt;
 
