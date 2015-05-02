@@ -95,8 +95,8 @@ ResponseSet responses;
 sendSurveyRequest(&quot;Tell me the current time in CEST&quot;);
 
 while not surveyDeadlineReached() {
-  Blob blob0 = getMemoryBlobFromNetwork();
-  Response response = deserializeBlob(blob0);
+  Blob blob = getMemoryBlobFromNetwork();
+  Response response = deserializeBlob(blob);
   responses.merge(response);
 }
 </code></pre>
@@ -117,7 +117,7 @@ With this kind of dependency the Pipeline Pattern can be easily introduced, with
 
     receive()   |   receive()   |   receive()   |
                 | deserialize() | deserialize() | deserialize() |
-		                |    merge()    |    merge()    |    merge()    |
+                                |    merge()    |    merge()    |    merge()    |
 </code></pre>
 
 <p>You can see how we are now able to receive(), deserialize() and merge() potentially in parallel running on multiple threads.</p>
@@ -213,7 +213,7 @@ Nothing
 
 <h2 id="composing-propagating-pipeline-stages:286e9a51e15d74f49bfe6192ec7e59b9">Composing Propagating Pipeline Stages</h2>
 
-<p>Using Maybe&rsquo;s Monadic Bind as above allows us to adapt our functions without the need to local error handling. Great! But how do we compose a pipeline then?
+<p>Using Maybe&rsquo;s Monadic Bind as above allows us to adapt our functions without the need for local error handling. Great! But how do we compose a pipeline then?
 We could directly use Monadic Bind or think about the types involved.
 Say we take two functions and want to compose them:</p>
 
@@ -224,7 +224,7 @@ Say we take two functions and want to compose them:</p>
 
 <p>That is what the so called Kleisli composition operator does:</p>
 
-<pre><code class="language-haskell">(&gt;=&gt;) :: Monad m =&gt; (a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+<pre><code class="language-haskell">(&gt;=&gt;) :: (a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
 </code></pre>
 
 <p>Look:</p>
@@ -261,7 +261,7 @@ This can be done switching out the Maybe Integer for an Either PipelineError Int
 
 <h2 id="summary:286e9a51e15d74f49bfe6192ec7e59b9">Summary</h2>
 
-<p>In using Monadic Bind and Kleisli Composition we not only composed error propagating pipeline stages, but we did this in a way that keeps the code clean and shows its intention to the reader. Being able to see patterns such as functional composition in code that may look totally unrelated and not functional at all &ndash; say C++ in the context of parallelization &ndash; helps tremendously.</p>
+<p>In using Monadic Bind and Kleisli Composition we not only composed error propagating pipeline stages, but we did this in a way that keeps the code clean and shows its intention to the reader. Being able to see patterns such as functional composition in code that may look totally unrelated and not in functional style at all &ndash; say C++ in the context of parallelization &ndash; helps tremendously.</p>
 
                     </div>
                 </section>
