@@ -2,19 +2,19 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Haskell on Daniel J. H.</title>
-    <link>http://localhost:1313/tags/haskell/</link>
+    <link>https://daniel-j-h.github.io/tags/haskell/</link>
     <description>Recent content in Haskell on Daniel J. H.</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     <lastBuildDate>Fri, 01 May 2015 19:49:27 +0200</lastBuildDate>
-    <atom:link href="http://localhost:1313/tags/haskell/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://daniel-j-h.github.io/tags/haskell/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
       <title>An Intuitive Use-Case For Monadic Bind And Kleisli Composition</title>
-      <link>http://localhost:1313/post/intuitive-monadic-bind-kleisli-composition/</link>
+      <link>https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/</link>
       <pubDate>Fri, 01 May 2015 19:49:27 +0200</pubDate>
       
-      <guid>http://localhost:1313/post/intuitive-monadic-bind-kleisli-composition/</guid>
+      <guid>https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/</guid>
       <description>
 
 &lt;p&gt;In which I accidentally stumble upon Monadic Bind and Kleisli Composition while parallelizing my C++14 code with Intel TBB&amp;rsquo;s pipeline. This is meant to help you connecting concepts from various fields rather than diving into too much theory.&lt;/p&gt;

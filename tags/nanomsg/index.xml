@@ -2,19 +2,19 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Nanomsg on Daniel J. H.</title>
-    <link>http://localhost:1313/tags/nanomsg/</link>
+    <link>https://daniel-j-h.github.io/tags/nanomsg/</link>
     <description>Recent content in Nanomsg on Daniel J. H.</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     <lastBuildDate>Sun, 22 Mar 2015 13:05:45 +0100</lastBuildDate>
-    <atom:link href="http://localhost:1313/tags/nanomsg/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://daniel-j-h.github.io/tags/nanomsg/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
       <title>Distributed Search Engine with Nanomsg and Bond</title>
-      <link>http://localhost:1313/post/distributed-search-nanomsg-bond/</link>
+      <link>https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/</link>
       <pubDate>Sun, 22 Mar 2015 13:05:45 +0100</pubDate>
       
-      <guid>http://localhost:1313/post/distributed-search-nanomsg-bond/</guid>
+      <guid>https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/</guid>
       <description>
 
 &lt;p&gt;Exploring Microsoft&amp;rsquo;s open source Bond framework by building a distributed search engine.
