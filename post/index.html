@@ -1,786 +1,86 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="blog blog blog">
-
-    <title>Posts &middot; Daniel J. H.</title>
-    <link href='//fonts.googleapis.com/css?family=Source+Sans+Pro:400,700|Oxygen:400,700' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" href="/css/pure-min.css">
+  <meta charset="utf-8">
+  <title>Posts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <link href="http://localhost:1313/post/index.xml" rel="alternate" type="application/rss+xml" title="Daniel J. H." />
+  <link href="http://localhost:1313//css/bootstrap.min.css" rel="stylesheet">
+  <link href="http://localhost:1313//css/hc.css" rel="stylesheet">
+  <link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css" rel="stylesheet">
+  
     
-    
-        <link rel="stylesheet" href="/css/grids-responsive-min.css">
-    
-
-    
-    
-        <link rel="stylesheet" href="/css/blog.css">
-    
-    <link href="//netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/highlight.min.css">
-    <script src="/js/highlight.min.js"></script>
-    <script>hljs.initHighlightingOnLoad();</script>
-</head>
-<body>
-
-
-<div id="layout" class="pure-g">
-    <div class="sidebar pure-u-1 pure-u-md-1-4">
-    <div class="header">
-        <hgroup>
-            <h1 class="brand-title"><a href="https://daniel-j-h.github.io">Daniel J. H.</a></h1>
-            <h2 class="brand-tagline"> blog blog blog </h2>
-        </hgroup>
-
-        <nav class="nav">
-            <ul class="nav-list">
-                
-                <li class="nav-item">
-                    <a class="pure-button" href="http://twitter.com/danieljayh"><i class="fa fa-twitter"></i> Twitter</a>
-                </li>
-                
-                
-                <li class="nav-item">
-                    <a class="pure-button" href="http://github.com/daniel-j-h "><i class="fa fa-github-alt"></i> github</a>
-                </li>
-                
-            </ul>
-        </nav>
-    </div>
-</div>
-
-    <div class="content pure-u-1 pure-u-md-3-4">
-        <div>
-            
-            <div class="posts">
-                
-                <h1 class="content-subhead">01 May 2015, 19:49</h1>
-                <section class="post">
-                    <header class="post-header">
-
-                        <a href="https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/" class="post-title">An Intuitive Use-Case For Monadic Bind And Kleisli Composition</a>
-
-                        <p class="post-meta">
-                            
-                            
-                                under 
-                                <a class="post-category post-category-Functional Programming" href="/categories/functional-programming">Functional Programming</a>
-                            
-                        </p>
-                    </header>
-
-                    <div class="post-description">
-                        
-
-<p>In which I accidentally stumble upon Monadic Bind and Kleisli Composition while parallelizing my C++14 code with Intel TBB&rsquo;s pipeline. This is meant to help you connecting concepts from various fields rather than diving into too much theory.</p>
-
-<h2 id="motivation:286e9a51e15d74f49bfe6192ec7e59b9">Motivation</h2>
-
-<p>In my <a href="https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/">post about a Distributed Search Engine</a> I&rsquo;m using the so called survey communication pattern, which works roughly as follows:</p>
-
-<ul>
-<li>Send request to multiple Respondents</li>
-<li>Gather and merge responses</li>
-</ul>
-
-<p>In pseudocode with the function&rsquo;s declarations this may look like:</p>
-
-<pre><code>Blob getMemoryBlobFromNetwork();
-Response deserializeBlob(Blob);
-
-
-ResponseSet responses;
-
-sendSurveyRequest(&quot;Tell me the current time in CEST&quot;);
-
-while not surveyDeadlineReached() {
-  Blob blob = getMemoryBlobFromNetwork();
-  Response response = deserializeBlob(blob);
-  responses.merge(response);
-}
-</code></pre>
-
-<p>This works rather well, but there is room for improvement.
-Although the Respondents send their responses concurrently, we handle responses one after the other.
-That is we first receive a response as memory blob from the networking layer.
-We then deserialize it, after which we merge it into a set of responses.
-It is not until then that we turn our attention to the next response.</p>
-
-<p>Notice how the next function&rsquo;s input depends on the current function&rsquo;s output.
-With this kind of dependency the Pipeline Pattern can be easily introduced, with the goal of running the pipeline&rsquo;s stages in parallel, increasing the system&rsquo;s throughput.</p>
-
-<p>With three responses the pipeline may look as follows:</p>
-
-<pre><code class="language-bash">      step 1    |     step 2    |     step 3    |     step 4    |     step 5    |
-    -----------------------------------------------------------------------------
-
-    receive()   |   receive()   |   receive()   |
-                | deserialize() | deserialize() | deserialize() |
-                                |    merge()    |    merge()    |    merge()    |
-</code></pre>
-
-<p>You can see how we are now able to receive(), deserialize() and merge() potentially in parallel running on multiple threads.</p>
-
-<p>In the Distributed Search Engine C++14 code this can be accomplished rather easily, using Intel TBB&rsquo;s pipeline. I pushed a <a href="https://github.com/daniel-j-h/DistributedSearch/commit/97224b179fdc050dc219287616e8d3073e0e0a8c">commit</a> with this to the original Distributed Search Engine repository. See <a href="https://github.com/daniel-j-h/DistributedSearch/blob/97224b179fdc050dc219287616e8d3073e0e0a8c/Service.cc#L110-L114">the code</a> for yourself.</p>
-
-<h2 id="failures-and-how-to-propagate-them:286e9a51e15d74f49bfe6192ec7e59b9">Failures And How To Propagate Them</h2>
-
-<p>Failures happen. We may not be able to deserialize a request.
-Maybe we have additional uncompress or decrypt stages that may fail.
-But what happens if an exception occurs in a particular pipeline stage? With the above implementation this would bring down the whole pipeline.</p>
-
-<p>What we really want from our functions is to express a computation that may fail.
-That is, instead of the exception throwing functions we want them to wrap their response in something that is able to express failure, such as the generic Optional, also known as Maybe Monad. Here are the declarations with this in mind:</p>
-
-<pre><code>  Optional&lt;Blob&gt; getMemoryBlobFromNetwork();
-  Optional&lt;Blob&gt; uncompressBlob(Blob blob);
-  Optional&lt;Blob&gt; decryptBlob(Blob blob);
-  Optional&lt;Response&gt; deserializeBlob(Blob blob);
-</code></pre>
-
-<p>Perfect! But wait, now the types do not match!
-Our functions do not expect arguments wrapped in an Optional but instead types such as a raw Blob. What we have to do is convert from Optionals to their value type by checking for success and then passing the value type on:</p>
-
-<pre><code>while not surveyDeadlineReached() {
-  Optional&lt;Blob&gt; blob0 = getMemoryBlobFromNetwork();
-  if (blob0) {
-    Optional&lt;Blob&gt; blob1 = decryptBlob(*blob0);
-
-    if (blob1) {
-      Optional&lt;Blob&gt; blob2 = uncompressBlob(*blob1);
-
-      if (blob2) {
-        Optional&lt;Response&gt; response = deserializeBlob(*blob2);
-
-        if (response) {
-          responses.merge(*response);
-        }
-      }
-    }
-  }
-}
-</code></pre>
-
-<p>This is horrible error handling. There has to be a better way. And there is.
-Note: you may flatten this kind of error handling with guards, but the overhead remains.</p>
-
-<p>First let us switch to Haskell for pseudocode as I don&rsquo;t want to show you the C++ that is required for this.
-Our dummy functions representing the pipeline stages now take integers and may return an optional of integer, Maybe Integer that is:</p>
-
-<pre><code class="language-haskell">-- :: Integer -&gt; Maybe Integer
-f0 = \x -&gt; Just (x + 1)
-f1 = \x -&gt; Just (x + 10)
-f2 = \x -&gt; Just (x + 100)
-</code></pre>
-
-<p>And a function that always fails, to provoke errors later on:</p>
-
-<pre><code class="language-haskell">-- :: Integer -&gt; Maybe Integer
-g0 = \_ -&gt; Nothing
-</code></pre>
-
-<p>What we still need is a way to convert our functions taking integers to functions taking a Maybe Integer, checking for success, and only then calling the plain function. That is, the type has to be similar to:</p>
-
-<pre><code class="language-haskell">Maybe Integer -&gt; (Integer -&gt; Maybe Integer) -&gt; Maybe Integer
-</code></pre>
-
-<p>This looks suspiciously similar to what Monadic Bind does. Take a look:</p>
-
-<pre><code class="language-haskell">(&gt;&gt;=) :: m a -&gt; (a -&gt; m b) -&gt; m b
-</code></pre>
-
-<p>Let&rsquo;s see it in action, using it for passing integers wrapped as Maybe Integer to our functions taking an integer:</p>
-
-<pre><code class="language-haskell">Just 0 &gt;&gt;= f0
-Just 1
-
-Just 0 &gt;&gt;= f0 &gt;&gt;= f1 &gt;&gt;= f2
-Just 111
-
-Just 0 &gt;&gt;= f0 &gt;&gt;= g0 &gt;&gt;= f1 &gt;&gt;= f2
-Nothing
-</code></pre>
-
-<p>Monadic Bind for the Maybe monad does exactly what we need:</p>
-
-<ul>
-<li>in case the passed in Maybe Integer is a Just we go on executing the function on its value</li>
-<li>in case the passed in Maybe Integer is Nothing we do not execute the function but instantaneously return Nothing</li>
-</ul>
-
-<p>This is exactly the semantic we want for our motivating pipeline example!</p>
-
-<h2 id="composing-propagating-pipeline-stages:286e9a51e15d74f49bfe6192ec7e59b9">Composing Propagating Pipeline Stages</h2>
-
-<p>Using Maybe&rsquo;s Monadic Bind as above allows us to adapt our functions without the need for local error handling. Great! But how do we compose a pipeline then?
-We could directly use Monadic Bind or think about the types involved.
-Say we take two functions and want to compose them:</p>
-
-<pre><code class="language-haskell">(Integer -&gt; Maybe Integer) -&gt; (Integer -&gt; Maybe Integer) -&gt; Integer -&gt; Maybe Integer
-</code></pre>
-
-<p>That is, with two functions and an integer we start off passing the integer to the first function, then doing our Monadic Bind trick from above, potentially passing the result to the second function, returning the result.</p>
-
-<p>That is what the so called Kleisli composition operator does:</p>
-
-<pre><code class="language-haskell">(&gt;=&gt;) :: (a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
-</code></pre>
-
-<p>Look:</p>
-
-<pre><code class="language-haskell">pipeline = f0 &gt;=&gt; f1 &gt;=&gt; f2
-pipeline :: Integer -&gt; Maybe Integer
-
-Just 1 &gt;&gt;= pipeline
-Just 112
-</code></pre>
-
-<p>Equipped with Monadic Bind and Kleisli Composition we may go back to our C++14 code base and implement the ideas there. I&rsquo;m not going to show you how this can be done here, as it requires some more boilerplate code to make the compiler happy &ndash; as usual.</p>
-
-<h2 id="further-remarks:286e9a51e15d74f49bfe6192ec7e59b9">Further Remarks</h2>
-
-<p>You probably want to propagate an explanation of what exactly went wrong in case of failure.
-This can be done switching out the Maybe Integer for an Either PipelineError Integer, with PipelineError being a sum type of the pipeline stage&rsquo;s potential errors.</p>
-
-<p>See Scott Wlaschin&rsquo;s slides on monadic bind and what he calls &ldquo;Railway Oriented Programming&rdquo;:</p>
-
-<ul>
-<li><a href="http://www.slideshare.net/ScottWlaschin/fp-patterns-ndc-london2014">Functional Programming Patterns (NDC London 2014)</a></li>
-<li><a href="http://www.slideshare.net/ScottWlaschin/railway-oriented-programming">Railway Oriented Programming</a></li>
-</ul>
-
-<p>For more about monads, see Learn You A Haskell <a href="http://learnyouahaskell.com/chapters">Chapter 12 and 13</a>.</p>
-
-<p>Haskell documentation:</p>
-
-<ul>
-<li><a href="https://hackage.haskell.org/package/base-4.6.0.1/docs/Control-Monad.html#v:-62--62--61-">Monadic Bind, &gt;&gt;=</a></li>
-<li><a href="https://hackage.haskell.org/package/base-4.6.0.1/docs/Control-Monad.html#v:-62--61--62-">Kleisli Composition, &gt;=&gt;</a></li>
-</ul>
-
-<h2 id="summary:286e9a51e15d74f49bfe6192ec7e59b9">Summary</h2>
-
-<p>In using Monadic Bind and Kleisli Composition we not only composed error propagating pipeline stages, but we did this in a way that keeps the code clean and shows its intention to the reader. Being able to see patterns such as functional composition in code that may look totally unrelated and not in functional style at all &ndash; say C++ in the context of parallelization &ndash; helps tremendously.</p>
-
-<h2 id="comment:286e9a51e15d74f49bfe6192ec7e59b9">Comment</h2>
-
-<p>Join the discussion over at <a href="https://news.ycombinator.com/item?id=9477386">HackerNews</a>, Reddit&rsquo;s <a href="http://www.reddit.com/r/programming/comments/34mnqf/an_intuitive_usecase_for_monadic_bind_and_kleisli/">/r/programming</a> or <a href="http://www.reddit.com/r/cpp/comments/34mnqp/an_intuitive_usecase_for_monadic_bind_and_kleisli/">/r/cpp</a>.</p>
-
-                    </div>
-                </section>
-                
-                <h1 class="content-subhead">22 Mar 2015, 13:05</h1>
-                <section class="post">
-                    <header class="post-header">
-
-                        <a href="https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/" class="post-title">Distributed Search Engine with Nanomsg and Bond</a>
-
-                        <p class="post-meta">
-                            
-                            
-                                under 
-                                <a class="post-category post-category-Distributed Systems" href="/categories/distributed-systems">Distributed Systems</a>
-                            
-                        </p>
-                    </header>
-
-                    <div class="post-description">
-                        
-
-<p>Exploring Microsoft&rsquo;s open source Bond framework by building a distributed search engine.
-I&rsquo;m using bond for serialization/deserialization and nanomsg for communication.</p>
-
-<p>The source for this C++14 project is located at: <a href="https://github.com/daniel-j-h/DistributedSearch">https://github.com/daniel-j-h/DistributedSearch</a></p>
-
-<h2 id="motivation:1b84be3312b0ca180481a342bee08b53">Motivation</h2>
-
-<p>A few weeks ago Microsoft open sourced Bond, a cross-platform framework for serialization/deserialization, similar to Google&rsquo;s Protocol Buffers or Cap&rsquo;n Proto. I have some experience with Cap&rsquo;n Proto in particular, so this weekend I wanted to give Bond a try, since I had a few hours to spare.</p>
-
-<h3 id="a-distributed-search-engine:1b84be3312b0ca180481a342bee08b53">A Distributed Search Engine</h3>
-
-<p>Rob Pike introduced Go&rsquo;s concurrency patterns with an example of a Google-inspired search.
-The slides <a href="https://talks.golang.org/2012/concurrency.slide#42">are still available</a> (please quickly skim slides 42-52) and the talk is also on Youtube. Let&rsquo;s pick up this idea and implement it!</p>
-
-<p>The approach taken is roughly as follows:</p>
-
-<ul>
-<li>Query multiple services concurrently: for web results, video results, news and so on</li>
-<li>Gather the results, merge and show them to the user</li>
-<li>Replicate the services and query the replicas, too</li>
-<li>Do not wait forever, set timeouts</li>
-</ul>
-
-<p>This is the general idea. For more information please see the talk mentioned above.</p>
-
-<p>Now this project consists of the following. The communication part, for sending requests and receiving responses. I&rsquo;m using nanomsg for this.
-But first we have to serialize/deserialize our requests, i.e. the keyword to search for and the matches we receive from the services. I&rsquo;m using Bond for this.</p>
-
-<h2 id="nanomsg:1b84be3312b0ca180481a342bee08b53">Nanomsg</h2>
-
-<p><a href="http://nanomsg.org/">nanomsg</a> is a communication library, designed to provide you with patterns, such as Pub/Sub, Req/Rep, the Survey pattern and more.
-You may be familiar with ZeroMQ, nanomsg is more or less the same with a few exceptions. I&rsquo;m using nanomsg since I&rsquo;m already familiar with it.</p>
-
-<p>Now we design our distributed search engine as follows: a Search service issues user-provided queries concurrently against the WebSearch service, the VideoSearch service and so on. The results are then merged and shown to the user. For this we&rsquo;re using nanomsg&rsquo;s <a href="http://nanomsg.org/v0.4/nn_survey.7.html">Survey pattern</a>.
-The Survey pattern sends messages to multiple locations and gathers the responses. For our simple project this is good enough, but having a single Surveyor is not the best idea and you probably want to think about how to factor this into the design.</p>
-
-<h3 id="surveyor:1b84be3312b0ca180481a342bee08b53">Surveyor</h3>
-
-<p>With the Survey pattern the so called Surveyor (our user-facing Search service) has to <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L28-L37">bind to the endpoint</a>, on which so called Respondents connect to.
-The Surveyor also sets a timeout after which the survey is over and subsequent results coming in are discarded for this particular survey.</p>
-
-<p>For every user query the Surveyor now does the following.
-Initially <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L57-L58">broadcast the request to the Respondents</a>.
-Then <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L70">gather all results from the Respondents</a> as long as the timeout has not expired.</p>
-
-<h3 id="respondents:1b84be3312b0ca180481a342bee08b53">Respondents</h3>
-
-<p>Respondents (our WebSearch service, ImageSearch service, and so on) <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L100-L104">connect to the endpoint</a>, indicating they want to participate in surveys.
-For this the services spin in an eventloop, waiting for requests to process.
-Once they <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L121-L122">receive a request</a> they handle it (i.e. they search for results) and <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L147-L148">send matches for this query back</a>.</p>
-
-<pre><code class="language-nohighlight">
-            Surveyor
-         bind(localhost)
-        /               \
-       /                 \
-      /                   \
-connect(Surveyor)    connect(Surveyor)
-   Respondent           Respondent
-
-</code></pre>
-
-<p>Now that the basic communication is set up, let&rsquo;s do the serialization/deserialization part.</p>
-
-<h2 id="bond:1b84be3312b0ca180481a342bee08b53">Bond</h2>
-
-<p>Using <a href="https://github.com/Microsoft/bond">Microsoft&rsquo;s Bond framework</a>, we&rsquo;re able to serialize and deserialize our messages (i.e. the keyword to search for and the matches we receive) before sending them over the wire.
-For this we <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Messages.bond">define our messages</a> in a .bond schema.
-The bond schema compiler now <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Makefile#L5-L6">lets us generate stubs</a> from this schema and they are included in the source repository.
-You probably want to augment the messages with more information, such as timestamps, ratings, and so on. For this project a simple schema is good enough.</p>
-
-<p>What&rsquo;s interesting now is the fact that the bond compiler is also able to spit out Python and C# stubs, which should make it possible to implement the Surveyor and Respondents in other languages, too. But I did not try this, yet.</p>
-
-<h3 id="serialization:1b84be3312b0ca180481a342bee08b53">Serialization</h3>
-
-<p>Now what the Surveyor (our user-facing search service) does is to <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L47-L54">serialize the user-provided keyword</a> before handing it over to nanomsg.
-The Respondents (our WebSearch service, ImageSearch service, and so on) also <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L138-L145">serialize their results</a> before sending them back to us.</p>
-
-<h3 id="deserialization:1b84be3312b0ca180481a342bee08b53">Deserialization</h3>
-
-<p>For every query the Surveyor sends it has to <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L76-L80">deserialize the responses</a> nanomsg hands us during the survey.
-The respondents similarly have to first <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L129-L133">deserialize the keyword</a> the Surveyor sends us.</p>
-
-<p>The types we used in the schema now integrate perfectly into the language. Therefore <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L82-L83">merging responses</a> on the Surveyor side is quite easy, using set semantics. <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Service.h#L139">Populating</a> the data structure with responses on the Respondent&rsquo;s side can be done in the same way.</p>
-
-<p>Both serialization and deserialization are quite easy with Bond. Especially the (bytes, size)-tuple handling as required when interacting with nanomsg is not as bad as it was with Cap&rsquo;n Proto.
-Fortunately Kenton Varda improved the Cap&rsquo;n Proto library in this regard, after <a href="https://groups.google.com/forum/#!msg/capnproto/viZXnQ5iN50/B-hSgZ1yLWUJ">a discussion on the mailinglist</a>.</p>
-
-<h2 id="putting-it-all-together:1b84be3312b0ca180481a342bee08b53">Putting It All Together</h2>
-
-<p>With the serialization/deserialization and communication part done, all we have to do is put the pieces together.
-That is, wrap what we built and provide a few ways of customization.</p>
-
-<p>The user-facing Search service <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/Search.cc#L10-L20">interacts with the user and queries the services</a>.
-The search services <a href="https://github.com/daniel-j-h/DistributedSearch/blob/62a84caa478b3421e275d57ad0311c879ff89b51/WebSearch.cc#L9-L20">wait for queries and handle them</a> by sending dummy results for now.
-Now let&rsquo;s take a look at what we just built!</p>
-
-<p>Spin up the user-facing Search service and try issuing queries against it:</p>
-
-<pre><code>./Search
-</code></pre>
-
-<pre><code class="language-bash">Search&gt;
-How many horns does a unicorn have?
-
-Results&gt;
-</code></pre>
-
-<p>No results. Right, we do not have any search service running. Let&rsquo;s spin up a few:</p>
-
-<pre><code>./WebSearch
-./VideoSearch
-</code></pre>
-
-<p>Resulting in the following service tree:</p>
-
-<pre><code class="language-bash">           Search
-          /      \
-    WebSearch  VideoSearch
-</code></pre>
-
-<p>And interact with the user interface:</p>
-
-<pre><code class="language-bash">Search&gt;
-How many horns does a unicorn have?
-
-Results&gt;
- * First Video Result
- * First Web Result
- * Second Video Result
- * Second Web Result
-</code></pre>
-
-<p>Great! We get results back from those two services, without even noticing the connection establishment and communication done in the background during which our program was active at all time.</p>
-
-<h3 id="communication-guarantees:1b84be3312b0ca180481a342bee08b53">Communication Guarantees</h3>
-
-<p>Now what makes this even more awesome is that nanomsg guarantees us a handful of nice properties.
-For example, our user-facing Search service does not care about what services are currently available.
-You are also able to disconnect or re-connect any service at any time and the user only sees this in the results available.
-This also allows us to start up e.g. multiple WebSearch service replicas in case some are too slow to respond within the timout.
-Finally, nanomsg also <a href="http://nanomsg.org/v0.1/nn_setsockopt.3.html">handles auto-reconnects</a>.</p>
-
-<p>Furthermore we do not depend on the transport used. Check this out for a local IPC engine:</p>
-
-<pre><code>./Search &quot;ipc:///tmp/search.ipc&quot;
-./WebSearch &quot;ipc:///tmp/search.ipc&quot;
-</code></pre>
-
-<h3 id="recursively-building-service-trees:1b84be3312b0ca180481a342bee08b53">Recursively Building Service Trees</h3>
-
-<p>Throughout this project we assumed having a single Surveyor and multiple Respondents attached to it.
-But what if a Respondent, e.g. a WebSearch service, has to query multiple WebSearch services recursively itself.
-In this case, the Respondent also becomes a Surveyor for its local Respondents. This makes it possible to recursively build a tree of services.</p>
-
-<p><a href="https://github.com/daniel-j-h/DistributedSearch/commit/84c361d336033b5a669b7b37ccc3b0773cb62b54#diff-3">Introducing</a> the RecursiveSearch service. The idea is the following: both <a href="https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L10-L11">bind and connect to endpoints</a>. The bind endpoint specifies the location Respondents further down the tree have to connect to. The connect endpoint specifies where to send the responses from those Respondents. By <a href="https://github.com/daniel-j-h/DistributedSearch/blob/84c361d336033b5a669b7b37ccc3b0773cb62b54/RecursiveSearch.cc#L13-L24">passing on the request</a> to all attached services we therefore act as a proxy, broadcasting the request to the Respondents attached to us. To guarantee timely delivery of results up the tree, the survey&rsquo;s timeout has to be smaller going down the tree. Leveraging the abstractions built so far makes an implementation possible in only a few lines of code.</p>
-
-<p>We are now able to recursively build a tree of services:</p>
-
-<pre><code class="language-bash">./Search &quot;tcp://*:9995&quot;
-./VideoSearch &quot;tcp://localhost:9995&quot;
-./RecursiveSearch &quot;tcp://*:9996&quot; &quot;tcp://localhost:9995&quot;
-./WebSearch &quot;tcp://localhost:9996&quot;
-./ImageSearch &quot;tcp://localhost:9996&quot;
-</code></pre>
-
-<p>Resulting in the following service tree:</p>
-
-<pre><code class="language-bash">           Search
-          /      \
-  VideoSearch   RecursiveSearch
-                 /           \
-	     WebSearch    ImageSearch
-</code></pre>
-
-<p>With this setup, Search is the tree&rsquo;s root, with VideoSearch and RecursiveSearch attached to it and WebSearch attached to the RecursiveSearch node. Attaching more services can be done transparently on each layer of the tree. Just attach them to the subtree&rsquo;s specific root-service.</p>
-
-<p>If you try the recursive example on a single machine, you have to change the port for each layer, otherwise there would be no way to distinguish the root from internal tree nodes. To be more precise, each subtree&rsquo;s root has to bind to a different port.</p>
-
-<h2 id="summary:1b84be3312b0ca180481a342bee08b53">Summary</h2>
-
-<p>In building a distributed search engine you hopefully learnt something about communication and serialization.
-Using nanomsg and its Survey pattern makes the communication part quite easy.
-Bond makes the serialization and deserialization part simple to implement.</p>
-
-<p>The source is hosted on GitHub: <a href="https://github.com/daniel-j-h/DistributedSearch">https://github.com/daniel-j-h/DistributedSearch</a></p>
-
-                    </div>
-                </section>
-                
-                <h1 class="content-subhead">01 Feb 2015, 10:39</h1>
-                <section class="post">
-                    <header class="post-header">
-
-                        <a href="https://daniel-j-h.github.io/post/gentle-introduction-postgis/" class="post-title">A Gentle Introduction To Geospatial Analysis</a>
-
-                        <p class="post-meta">
-                            
-                            
-                                under 
-                                <a class="post-category post-category-Geospatial Analysis" href="/categories/geospatial-analysis">Geospatial Analysis</a>
-                            
-                        </p>
-                    </header>
-
-                    <div class="post-description">
-                        
-
-<p>This is meant as a gentle introduction into geospatial analysis.<br />
-We&rsquo;re going to use OpenStreetMap datasets and work on PostgreSQL with the PostGIS extension.</p>
-
-<h2 id="requirements:9b8c8843b531f194f39f9a90bfa38bfd">Requirements</h2>
-
-<p>For our geospatial analysis we need a few packages for importing, querying and exporting the datasets.</p>
-
-<ul>
-<li>PostgreSQL</li>
-<li>PostGIS</li>
-<li>osm2pgsql</li>
-<li>ogr2ogr</li>
-</ul>
-
-<p>Install the requirements from your package manager.
-For reference: my system is Debian GNU/Linux 8.0 (jessie):</p>
-
-<pre><code class="language-bash">aptitude install postgresql-9.4 postgis osm2pgsql gdal-bin
-</code></pre>
-
-<h2 id="preparing-the-database:9b8c8843b531f194f39f9a90bfa38bfd">Preparing The Database</h2>
-
-<p>As user postgres (i.e. sudo su postgres) create a new user playground, a new table playground and activate the PostGIS extension:</p>
-
-<pre><code class="language-bash">createuser playground
-createdb --owner playground gis
-psql --dbname=gis --command 'create extension postgis;'
-</code></pre>
-
-<h2 id="importing-openstreetmap-datasets:9b8c8843b531f194f39f9a90bfa38bfd">Importing OpenStreetMap Datasets</h2>
-
-<p>Geofabrik hosts OpenStreetMap dumps at <a href="http://download.geofabrik.de">http://download.geofabrik.de</a><br />
-I highly recommend starting with a small dataset first. We&rsquo;re using sweden-latest.osm.pbf here.</p>
-
-<p>Import the dataset into Postgres. This creates relations and fills the database appropriately for efficient querying:</p>
-
-<pre><code class="language-bash">osm2pgsql --create --database gis --latlong --slim --cache 4096 --username playground --password --number-processes 4 --multi-geometry --disable-parallel-indexing sweden-latest.osm.pbf
-</code></pre>
-
-<p>See the osm2pgsql manpage; you may want to change a few parameters e.g. the cache size.</p>
-
-<p>Hint: this is I/O bound from what I can tell (check iotop, htop), so your cpus won&rsquo;t help much after a few minutes.
-In case you don&rsquo;t have a lot of memory you may want to temporarily lower the swappiness before importing:</p>
-
-<pre><code class="language-bash">sudo sysctl vm.swappiness=10
-</code></pre>
-
-<p>Warning: importing with the latlong switch means we&rsquo;re using the Spacial Reference System Id 4326 (WGS 84, EPSG:4326), therefore the units are in degree.
-We have to cast the geometry type to the geography type if we want to work with meters. Just keep this in mind.</p>
-
-<p>See <a href="http://wiki.openstreetmap.org/wiki/Osm2pgsql">http://wiki.openstreetmap.org/wiki/Osm2pgsql</a></p>
-
-<h2 id="exporting-query-results-as-geojson:9b8c8843b531f194f39f9a90bfa38bfd">Exporting Query Results As GeoJSON</h2>
-
-<p>ogr2ogr is able to issue queries against PostgreSQL, generating GeoJSON&rsquo;s FeatureCollections and inserting your gemometry with description on the fly. See the example exports below for how this can be done. Other formats are available, too.</p>
-
-<p>If you don&rsquo;t want to use ogr2ogr you have to assemble GeoJSON from primitives such as points and lines yourself.
-You&rsquo;re then able to use the exported GeoJSON files as data source e.g. for Mapbox.</p>
-
-<p>See <a href="http://www.gdal.org/ogr2ogr.html">http://www.gdal.org/ogr2ogr.html</a></p>
-
-<p>In the following I&rsquo;m using Mapbox for visualization (as long as my data limit is not reached).</p>
-
-<h2 id="resources-for-working-on-the-database:9b8c8843b531f194f39f9a90bfa38bfd">Resources For Working On The Database</h2>
-
-<p>Here are two good starting points for working on the database.</p>
-
-<ul>
-<li>Database schema: <a href="http://wiki.openstreetmap.org/wiki/Osm2pgsql/schema">http://wiki.openstreetmap.org/wiki/Osm2pgsql/schema</a></li>
-<li>Map Features: <a href="http://wiki.openstreetmap.org/wiki/Map_Features">http://wiki.openstreetmap.org/wiki/Map_Features</a></li>
-</ul>
-
-<p>Scan the Map Features quickly for what is available.
-In the following we&rsquo;re doing a few queries against those features.</p>
-
-<h2 id="queries-against-features-and-polygons:9b8c8843b531f194f39f9a90bfa38bfd">Queries Against Features And Polygons</h2>
-
-<p>Connect to the database:</p>
-
-<pre><code class="language-bash">psql --dbname=gis --username=playground
-</code></pre>
-
-<p>Let&rsquo;s see what kind of relations and columns are available:</p>
-
-<pre><code class="language-bash">\d
-\d planet_osm_point
-</code></pre>
-
-<p>Helpful PostGIS functions:</p>
-
-<ul>
-<li>ST_AsGeoJSON on the geometry returns geojson</li>
-<li>ST_{XMin,YMin} on the geometry returns latlong</li>
-<li>ST_DWithin, ST_Distance and other for filtering and measurements</li>
-</ul>
-
-<p>See <a href="http://postgis.net/docs/manual-2.1/reference.html">http://postgis.net/docs/manual-2.1/reference.html</a></p>
-
-<p>Hints for doing queries:</p>
-
-<ul>
-<li>Limit your query while exploring the dataset, but don&rsquo;t forget to unset the limit for exporting.</li>
-<li>The column&rsquo;s type is text in almost all cases, check for number &lsquo;^[0-9]+$&rsquo; and cast; in order by clauses, too</li>
-<li>use CTRL-A/CTRL+E to jump to the left/right in psql, CTRL+L to clear screen</li>
-</ul>
-
-<p>Now let&rsquo;s do a few queries!</p>
-
-<h3 id="all-airports:9b8c8843b531f194f39f9a90bfa38bfd">All Airports</h3>
-
-<p>Let&rsquo;s search for all airports in the dataset.</p>
-
-<ul>
-<li>Scroll through Map Features, find aerialways: <a href="http://wiki.openstreetmap.org/wiki/Map_Features#Aerialway">http://wiki.openstreetmap.org/wiki/Map_Features#Aerialway</a></li>
-<li>Aeroway tag: <a href="http://wiki.openstreetmap.org/wiki/Key:aeroway">http://wiki.openstreetmap.org/wiki/Key:aeroway</a></li>
-<li>Aerodrome value: <a href="http://wiki.openstreetmap.org/wiki/Tag:aeroway%3Daerodrome">http://wiki.openstreetmap.org/wiki/Tag:aeroway%3Daerodrome</a></li>
-</ul>
-
-<p>Warning: aerodrome is strictly speaking not only for airports. There are definitely a few missing, e.g. near Umeå, too.</p>
-
-<p>Nodes with tags are stored in the planet_osm_point relation.</p>
-
-<pre><code class="language-sql">SELECT name,
-       ST_AsGeoJSON(way) AS geojson
-FROM planet_osm_point
-WHERE aeroway='aerodrome'
-ORDER BY name LIMIT 3;
-</code></pre>
-
-<pre><code class="language-bash">        name        |                        geojson                         
---------------------+--------------------------------------------------------
- Ålleberg Airport   | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[13.6031192,58.1354088]}
- Älvsbyn Airport    | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[21.0611,65.6456985]}
- Anderstorp Airport | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[13.5993996,57.2641983]}
-</code></pre>
-
-<p>Nice! Now we either assemble a GeoJSON document manually from all the rows or we simply use ogr2ogr:</p>
-
-<pre><code class="language-bash">ogr2ogr -f &quot;GeoJSON&quot; airports.geojson -t_srs EPSG:4326 PG:&quot;dbname='gis' user='playground' password='playground'&quot; -s_srs EPSG:4326 -sql &quot;select name, way from planet_osm_point where aeroway='aerodrome' order by name;&quot;
-</code></pre>
-
-<p>ogr2ogr is quite clever and assembles GeoJSON from your geometries and description itself.</p>
-
-<iframe width='100%' height='500px' frameBorder='0' src='https://a.tiles.mapbox.com/v4/danieljh.l3jbdc17/attribution,zoompan,zoomwheel,geocoder,share.html?access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw'></iframe>
-
-<h3 id="largest-cities:9b8c8843b531f194f39f9a90bfa38bfd">Largest Cities</h3>
-
-<p>Now what about the largest cities in the dataset.</p>
-
-<ul>
-<li>Places: <a href="http://wiki.openstreetmap.org/wiki/Places">http://wiki.openstreetmap.org/wiki/Places</a></li>
-<li>Place tag: <a href="http://wiki.openstreetmap.org/wiki/Key:place">http://wiki.openstreetmap.org/wiki/Key:place</a></li>
-<li>City: <a href="http://wiki.openstreetmap.org/wiki/Tag:place%3Dcity">http://wiki.openstreetmap.org/wiki/Tag:place%3Dcity</a></li>
-<li>Population: <a href="http://wiki.openstreetmap.org/wiki/Key:population">http://wiki.openstreetmap.org/wiki/Key:population</a></li>
-</ul>
-
-<p>Note: my dataset containes at least one entry where the population field has a value of &ldquo;&gt;50&rdquo;, i.e. not a number.</p>
-
-<p>Keep this in mind in case you&rsquo;re doing sums, averages or casts in general.</p>
-
-<pre><code class="language-sql">SELECT sum(population::int) AS population
-FROM planet_osm_point
-WHERE population ~ '^[0-9]+$';
-</code></pre>
-
-<pre><code class="language-bash"> population 
-------------
-  15339409
-</code></pre>
-
-<p>Hmmm&hellip; interesting. This should be around 9-10 million.</p>
-
-<p>Now to the largest cities. The &lsquo;city&rsquo; value for the place tag already excludes smaller towns and villages.</p>
-
-<pre><code class="language-sql">SELECT name,
-       population::int,
-       ST_AsGeoJSON(way) AS geojson
-FROM planet_osm_point
-WHERE place='city'
-  AND population ~ '^[0-9]+$'
-ORDER BY population::int DESC LIMIT 5;
-</code></pre>
-
-<pre><code class="language-bash">   name    | population |                        geojson                         
------------+------------+--------------------------------------------------------
- Stockholm |     829417 | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[18.0710935,59.3251172]}
- Göteborg  |     522259 | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[11.9670171,57.7072326]}
- Malmö     |     303873 | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[13.0001566,55.6052931]}
- Uppsala   |     128400 | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[17.64112,59.8594126]}
- Västerås  |     110877 | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[16.5463679,59.6110992]}
-</code></pre>
-
-<pre><code class="language-bash">ogr2ogr -f &quot;GeoJSON&quot; cities.geojson -t_srs EPSG:4326 PG:&quot;dbname='gis' user='playground' password='playground'&quot; -s_srs EPSG:4326 -sql &quot;select name, population::int), way from planet_osm_point where place='city' and population ~ '^[0-9]+\$' order by population::int desc;&quot;
-</code></pre>
-
-<iframe width='100%' height='500px' frameBorder='0' src='https://a.tiles.mapbox.com/v4/danieljh.l3jbk96g/attribution,zoompan,zoomwheel,geocoder,share.html?access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw'></iframe>
-
-<h3 id="municipalities:9b8c8843b531f194f39f9a90bfa38bfd">Municipalities</h3>
-
-<p>Now we want the city&rsquo;s boundaries e.g. the municipality as polygon.
-The relation planet_osm_point only contains nodes with tags.
-For the polygon data we have to query the relation planet_osm_polygon in addition.</p>
-
-<p>To do this, we cross join the nodes with the polygons and filter the largest cities as above.
-We also check that our city is inside the municipality polygon.</p>
-
-<pre><code class="language-sql">SELECT polygon.name,
-       polygon.way
-FROM planet_osm_point AS point
-CROSS JOIN planet_osm_polygon AS polygon
-WHERE point.place='city'
-  AND polygon.admin_level = '7'
-  AND ST_Contains(polygon.way, point.way)
-  AND point.population ~ '^[0-9]+$'
-ORDER BY point.population::int DESC LIMIT 3;
-</code></pre>
-
-<p>For admin_level (7 is municipality) see <a href="http://wiki.openstreetmap.org/wiki/Key:admin_level#admin_level">http://wiki.openstreetmap.org/wiki/Key:admin_level#admin_level</a></p>
-
-<p>The output consists of polygons around the largest cities.</p>
-
-<pre><code>ogr2ogr -f &quot;GeoJSON&quot; boundaries.geojson -t_srs EPSG:4326 PG:&quot;dbname='gis' user='playground' password='playground'&quot; -s_srs EPSG:4326 -sql &quot;select polygon.name, polygon.way from planet_osm_point as point cross join planet_osm_polygon as polygon where point.place='city' and polygon.admin_level = '7' and ST_Contains(polygon.way, point.way) and point.population ~ '^[0-9]+\$' order by point.population::int desc;&quot;
-</code></pre>
-
-<iframe width='100%' height='500px' frameBorder='0' src='https://a.tiles.mapbox.com/v4/danieljh.l3jc1lpa/attribution,zoompan,zoomwheel,geocoder,share.html?access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw'></iframe>
-
-<h3 id="combining-airports-with-largest-cities:9b8c8843b531f194f39f9a90bfa38bfd">Combining Airports With Largest Cities</h3>
-
-<p>Now we want all airports that are within a distance X (in kilometers, 50km in this example query) around large cities.</p>
-
-<p>Warning: we imported with the latlong switch, which means SRID 4326.
-Therefore the units are in degrees. We cast to the geography type for working with meters.</p>
-
-<p>Let&rsquo;s cross join cities with airports and then filter by distance.</p>
-
-<pre><code class="language-sql">SELECT city.name AS city,
-       airport.name AS airport_name,
-       ST_AsGeoJSON(airport.way) AS airport,
-       ST_Distance(city.way::geography, airport.way::geography) AS distance
-FROM planet_osm_point AS city
-CROSS JOIN planet_osm_point AS airport
-WHERE city.place='city'
-  AND city.population ~ '^[0-9]+$'
-  AND airport.aeroway='aerodrome'
-  AND ST_DWithin(city.way::geography, airport.way::geography, 50000)
-ORDER BY distance LIMIT 3;
-</code></pre>
-
-<pre><code class="language-bash">    city     |      airport_name      |                        airport                         |    distance    
--------------+------------------------+--------------------------------------------------------+----------------
- Linköping   | Linköping City Airport | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[15.658056,58.4080416]}  | 1970.028258466
- Halmstad    | Halmstad Flygplats     | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[12.8216423,56.6865017]} |   2601.7448687
- Norrköping  | Norrköping Flygplats   | {&quot;type&quot;:&quot;Point&quot;,&quot;coordinates&quot;:[16.2469701,58.5859972]} | 3338.144166465
-</code></pre>
-
-<pre><code class="language-bash">ogr2ogr -f &quot;GeoJSON&quot; nearest.geojson -t_srs EPSG:4326 PG:&quot;dbname='gis' user='playground' password='playground'&quot; -s_srs EPSG:4326 -sql &quot;select city.name as city, airport.name as airport_name, airport.way as airport, ST_Distance(city.way::geography, airport.way::geography) as distance from planet_osm_point as city cross join planet_osm_point as airport where city.place='city' and city.population ~ '^[0-9]+\$' and airport.aeroway='aerodrome' and ST_DWithin(city.way::geography, airport.way::geography, 50000) order by distance;&quot;
-</code></pre>
-
-<iframe width='100%' height='500px' frameBorder='0' src='https://a.tiles.mapbox.com/v4/danieljh.l3jc7m3p/attribution,zoompan,zoomwheel,geocoder,share.html?access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw'></iframe>
-
-<h3 id="combining-geojson:9b8c8843b531f194f39f9a90bfa38bfd">Combining GeoJSON</h3>
-
-<p>Combining GeoJSON is also not a problem.
-Municipality polygons and airports around large cities for example.</p>
-
-<iframe width='100%' height='500px' frameBorder='0' src='https://a.tiles.mapbox.com/v4/danieljh.l3jcdofm/attribution,zoompan,zoomwheel,geocoder,share.html?access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw'></iframe>
-
-<h3 id="and-that-s-it:9b8c8843b531f194f39f9a90bfa38bfd">And That&rsquo;s It</h3>
-
-<p>This should give you an initial feel for what is possible with geospatial analysis.</p>
-
-                    </div>
-                </section>
-                
-            </div>
-            <div class="footer">
-    <div class="pure-menu pure-menu-horizontal pure-menu-open">
-        <ul>
-            <li>Powered by <a class="hugo" href="http://hugo.spf13.com/" target="_blank">hugo</a></li>
-        </ul>
-    </div>
-</div>
-
+    </head>
+    <body>
+<div class="nav-toggle"><i class="fa fa-bars fa-2x"></i> Herring Cove </div>
+      <div id = "wrapper">
+
+
+<div class="navbar navbar-default" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <p class="navbar-brand">Daniel J. H.</p>
         </div>
+        <div class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+					
+					
+          </ul>
+        </div>
+      </div>
     </div>
-</div>
+
+
+
+       
+       <div id="sidebar-wrapper">
+        <ul class="sidebar-nav">
+					<img src="" />
+          <li class="sidebar-brand"><a href="http://localhost:1313//"><h1 class="brand">Daniel J. H.</h1></a><h3></h3></li>
+          <hr />
+					
+          <hr />
+          <div id="social-wrapper">
+           <li> <a href="danieljayh"><i class="fa fa-twitter-square"></i> @twitter</a></li>
+           
+           
+           <li> <a href="daniel-j-h"><i class="fa fa-github-square"></i> github</a> </li>
+         </div>
+       </ul>
+     </div>
+
+
+
+     <div class="container">
+
+
+  <div id="article">
+      <h1>Posts</h1>
+  <ul class="posts">
+      
+      <li><span><a href="http://localhost:1313/post/intuitive-monadic-bind-kleisli-composition/">An Intuitive Use-Case For Monadic Bind And Kleisli Composition</a><time class="pull-right post-list">Fri, May 1, 2015</h4></time></span></span></li>
+      
+      <li><span><a href="http://localhost:1313/post/distributed-search-nanomsg-bond/">Distributed Search Engine with Nanomsg and Bond</a><time class="pull-right post-list">Sun, Mar 22, 2015</h4></time></span></span></li>
+      
+      <li><span><a href="http://localhost:1313/post/gentle-introduction-postgis/">A Gentle Introduction To Geospatial Analysis</a><time class="pull-right post-list">Sun, Feb 1, 2015</h4></time></span></span></li>
+      
+  </ul>
+    <footer>
+
+        <p class="text-muted credit">&copy; 2015. All rights reserved. </p>
+    </footer>
+ 
+    <script src="http://localhost:1313//js/jquery-1.10.2.min.js"></script>
+    <script src="http://localhost:1313//js/bootstrap.min.js"></script>
+    <script src="http://localhost:1313//js/bootstrap.js"></script>
+    <script type="text/javascript" src="http://localhost:1313//js/hc.js"></script>
 </body>
+
 </html>

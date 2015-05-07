@@ -2,22 +2,19 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Cxx on Daniel J. H.</title>
-    <link>https://daniel-j-h.github.io/tags/cxx/</link>
+    <link>http://localhost:1313/tags/cxx/</link>
     <description>Recent content in Cxx on Daniel J. H.</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    
-    
-    
-    <lastBuildDate>Fri, 01 May 2015 19:49:27 CEST</lastBuildDate>
-    <atom:link href="https://daniel-j-h.github.io/tags/cxx/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 01 May 2015 19:49:27 +0200</lastBuildDate>
+    <atom:link href="http://localhost:1313/tags/cxx/index.xml" rel="self" type="application/rss+xml" />
     
     <item>
       <title>An Intuitive Use-Case For Monadic Bind And Kleisli Composition</title>
-      <link>https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/</link>
-      <pubDate>Fri, 01 May 2015 19:49:27 CEST</pubDate>
+      <link>http://localhost:1313/post/intuitive-monadic-bind-kleisli-composition/</link>
+      <pubDate>Fri, 01 May 2015 19:49:27 +0200</pubDate>
       
-      <guid>https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/</guid>
+      <guid>http://localhost:1313/post/intuitive-monadic-bind-kleisli-composition/</guid>
       <description>
 
 &lt;p&gt;In which I accidentally stumble upon Monadic Bind and Kleisli Composition while parallelizing my C++14 code with Intel TBB&amp;rsquo;s pipeline. This is meant to help you connecting concepts from various fields rather than diving into too much theory.&lt;/p&gt;
@@ -218,10 +215,10 @@ This can be done switching out the Maybe Integer for an Either PipelineError Int
     
     <item>
       <title>Distributed Search Engine with Nanomsg and Bond</title>
-      <link>https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/</link>
-      <pubDate>Sun, 22 Mar 2015 13:05:45 CET</pubDate>
+      <link>http://localhost:1313/post/distributed-search-nanomsg-bond/</link>
+      <pubDate>Sun, 22 Mar 2015 13:05:45 +0100</pubDate>
       
-      <guid>https://daniel-j-h.github.io/post/distributed-search-nanomsg-bond/</guid>
+      <guid>http://localhost:1313/post/distributed-search-nanomsg-bond/</guid>
       <description>
 
 &lt;p&gt;Exploring Microsoft&amp;rsquo;s open source Bond framework by building a distributed search engine.
