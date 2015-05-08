@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Satisfiability Modulo Theories For Parallel Cooking And Other Optimizations</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Satisfiability Modulo Theories For Parallel Cooking And Other Optimizations">
+  <link href="" rel="alternate" type="application/rss+xml" title="Daniel J. H." />
+  <link href="https://daniel-j-h.github.io/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://daniel-j-h.github.io/css/hc.css" rel="stylesheet">
+  <link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css" rel="stylesheet">
+  
+    
+    </head>
+    <body>
+<div class="nav-toggle"><i class="fa fa-bars fa-2x"></i> Herring Cove </div>
+      <div id = "wrapper">
+
+
+<div class="navbar navbar-default" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <p class="navbar-brand">Daniel J. H.</p>
+        </div>
+        <div class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+					
+					
+          </ul>
+        </div>
+      </div>
+    </div>
+
+
+
+       
+       <div id="sidebar-wrapper">
+        <ul class="sidebar-nav">
+					<img src="" />
+          <li class="sidebar-brand"><a href="https://daniel-j-h.github.io/"><h1 class="brand">Daniel J. H.</h1></a><h3></h3></li>
+          <hr />
+					
+          <hr />
+          <div id="social-wrapper">
+           <li> <a href="danieljayh"><i class="fa fa-twitter-square"></i> @twitter</a></li>
+           
+           
+           <li> <a href="daniel-j-h"><i class="fa fa-github-square"></i> github</a> </li>
+         </div>
+       </ul>
+     </div>
+
+
+
+     <div class="container">
+
+
+  <div id="article">
+   <div class="article-title">Satisfiability Modulo Theories For Parallel Cooking And Other Optimizations</div>
+   <p class="meta"><small>&nbsp;<i class="fa fa-calendar-o"></i> 2015-05-08</small></p> <hr/>
+   <div class="post">
+     
+
+<p>Using an optimizing constraint solver to answer fundamental questions, such as &ldquo;How to optimize parallel Pizza cooking&rdquo;, and &ldquo;How to optimize layouting in CSS&rdquo;.
+In this article I will not only give answers to those questions but you will also get an introduction into Satisfiability (SAT) and Satisfiability Modulo Theories (SMT) solvers &ndash; Z3 in particular.</p>
+
+<h2 id="motivation:619ef41b8227f3f88c96d2c07c6ce0b4">Motivation</h2>
+
+<p>Another week, another newly open sourced project to play with!
+This time it is the <a href="https://github.com/Z3Prover/z3">Z3 Theorem Prover</a> that I want to have fun with.</p>
+
+<p>Let&rsquo;s get you started with the basics required for understanding the examples (read: you can skip till the &ldquo;Parallel Cooking&rdquo; section if you want code now).</p>
+
+<h2 id="satisfiability:619ef41b8227f3f88c96d2c07c6ce0b4">Satisfiability</h2>
+
+<p>Suppose we have a formula consisting of the <em>literals</em> A, B, C and a conjunction of two <em>clauses</em>, i.e. a formula in Conjunctive Normal Form (CNF):</p>
+
+<pre><code class="language-python">(A or C) and (not B)
+</code></pre>
+
+<p>Is there an assignment for the literals A, B and C to make the formula true?
+Sure, I can come up with an assignment:</p>
+
+<pre><code class="language-python">{A: false, B: false, C: true}
+</code></pre>
+
+<p>Can you think of another one?</p>
+
+<p>In general, this is the problem of satisfiability (SAT) which is NP-complete (read: hard).
+Fortunately there are SAT-solvers that help us determine if such an assignment exists.
+Most if not all SAT-solvers work with the DIMACS format that standardizes how to encode the formula.
+The syntax is as follows:</p>
+
+<pre><code>c Comment
+p cnf numberOfLiterals numberOfClauses
+...
+</code></pre>
+
+<p>What follows after the p-line is a way to encode your formula:
+literals are numbered starting from one.
+A negative number means negation.
+The zero at the end of the clause is a line terminator.</p>
+
+<p>Our formula from above has three <em>literals</em> (A, B, C) and two <em>clauses</em> ((A or C), (not B)), the first clause consists of A (1), C (3), the second clause consists of not B (-2):</p>
+
+<pre><code>c this is a dimacs file
+p cnf 3 2
+1 3 0
+-2 0
+</code></pre>
+
+<p>Let&rsquo;s feed this into Z3 and see what it comes up with:</p>
+
+<pre><code>sat
+1 -2 -3
+</code></pre>
+
+<p>Which translates to:</p>
+
+<pre><code class="language-python">{A: true, B: false, C: false}
+</code></pre>
+
+<p>Here is an assignment for you: encode this into the DIMACS format and check for satisfiability:</p>
+
+<pre><code class="language-python">(A or B) and ((not B) or C or (not D)) and (D or (not E))
+</code></pre>
+
+<p>Let&rsquo;s go on with building abstraction on top of SAT solvers, because this can&rsquo;t be it!</p>
+
+<h2 id="satisfiability-modulo-theories:619ef41b8227f3f88c96d2c07c6ce0b4">Satisfiability Modulo Theories</h2>
+
+<p>Now that we can encode problems for SAT solvers you may think:
+&ldquo;I can encode integers as boolean literals (read: in binary), much as my computer does it&rdquo; and this is exactly what Satisfiability Modulo Theories (SMT) is all about:
+an abstraction on top of SAT, that &ldquo;knows&rdquo; about so called theories.
+Here are some theories:</p>
+
+<ul>
+<li>Theory of Integers: mathematical integers, not machine types</li>
+<li>Theory of Reals: mathematical reals, not machine type</li>
+<li>Theory of Bitvectors: vector of bits, for signed and unsigned two&rsquo;s-complement calculations</li>
+</ul>
+
+<p>In addition, SMT also &ldquo;knows&rdquo; about their rules, e.g. how to add two 32 bit unsigned integers represented as so called Bitvectors.
+This takes away the burden to manually implement unsigned addition for 32 boolean literals representing an integer in SAT.</p>
+
+<p>As with the DIMACS format for SAT, there is a standardized format for SMT, the SMT-LIB 2.0 format.
+It may look rather Lisp&rsquo;ish &ndash; but don&rsquo;t despair, it&rsquo;s still easy to understand (if not, learn yourself some Clojure for great good &ndash; or use Z3&rsquo;s language bindings, e.g. the Python one).</p>
+
+<p>Let&rsquo;s see if we can find an assignment for two integers, satisfying the constraints that x is ten and y should be greater than zero and less then ten:</p>
+
+<pre><code class="language-clojure">(set-option :produce-models true)
+(set-logic QF_LIA)
+
+(declare-fun x () Int)
+(declare-fun y () Int)
+
+(assert (= x 10))
+(assert (&lt; 0 y 10))
+
+(check-sat)
+
+(get-value (x))
+(get-value (y))
+
+(exit)
+</code></pre>
+
+<p>Z3 comes up with the following:</p>
+
+<pre><code>sat
+((x 10))
+((y 1))
+</code></pre>
+
+<p>Cool!
+But wait, this only gives us a single solution or simply tells us &ldquo;unsat&rdquo;.
+What if we want an &ldquo;optimal&rdquo; solution (for our understanding of optimal) under certain constraints?</p>
+
+<h2 id="an-optimizing-smt-solver:619ef41b8227f3f88c96d2c07c6ce0b4">An Optimizing SMT Solver</h2>
+
+<p>Z3&rsquo;s opt branch implements an optimizing SMT solver, called nuZ.
+You can learn more about it in these two papers:</p>
+
+<ul>
+<li><a href="http://research.microsoft.com/en-US/people/nbjorner/nuz.pdf">nuZ - An Optimizing SMT Solver</a></li>
+<li><a href="http://research.microsoft.com/en-US/people/nbjorner/scss2014.pdf">nuZ - Maximal Satisfaction with Z3</a></li>
+</ul>
+
+<p>Let&rsquo;s start with an example:
+we want to maximize the sum of two integers under the constraints that the integer&rsquo;s values should be between zero and ten:</p>
+
+<pre><code class="language-clojure">(declare-const x Int)
+(declare-const y Int)
+
+(assert (&lt;= 0 x 10))
+(assert (&lt;= 0 y 10))
+
+(maximize (+ x y))
+
+(check-sat)
+(get-model)
+</code></pre>
+
+<p>Feeding this to Z3 gives us an optimal solution, maximizing the sum and also producing a model, showing x and y:</p>
+
+<pre><code class="language-clojure">(+ x y) |-&gt; 20
+sat
+(model
+  (define-fun y() Int 10)
+  (define-fun x() Int 10))
+</code></pre>
+
+<p>Great! This is good enough for now, let&rsquo;s optimize something!</p>
+
+<h2 id="parallel-cooking:619ef41b8227f3f88c96d2c07c6ce0b4">Parallel Cooking</h2>
+
+<p>Say you want to cook Pizza. With multiple cooks. In parallel.
+Can we come up with a schedule that minimizes the overall time it takes, while repecting constraints such as &ldquo;We have to slice onions before putting the Pizza into the oven&rdquo;?</p>
+
+<p>Instead of working only with integers let&rsquo;s create an interval type that abstracts, well, an interval:</p>
+
+<pre><code class="language-clojure">(declare-datatypes (BeginT EndT) ((IntervalT (makeInterval (begin BeginT) (end EndT)))))
+(define-sort Interval () (IntervalT Int Int))
+</code></pre>
+
+<p>This is rather ugly and I have to confess, I had to look up the exact syntax.
+But anyway, now we have an interval type (what is called Sort by the SMT people) with constructor <em>makeInterval</em>, and  <em>begin</em> and <em>end</em> accessors.</p>
+
+<p>Let&rsquo;s tell Z3 more about intervals.
+Intervals expand into the future, and have a duration.</p>
+
+<pre><code class="language-clojure">(define-fun intervalExpandsIntoFuture? ((interval Interval)) (Bool)
+  (&lt; (begin interval) (end interval)))
+
+(define-fun intervalDuration ((interval Interval)) (Int)
+  (- (end interval) (begin interval)))
+</code></pre>
+
+<p>If an interval requires a sescond interval to be over, this can also be expressed.
+The same goes for the requirement of an interval being during a second interval:</p>
+
+<pre><code class="language-clojure">(define-fun intervalRequiresIntervalOver ((lhs Interval) (rhs Interval)) (Bool)
+  (&gt; (begin lhs) (end rhs)))
+
+(define-fun intervalDuringInterval? ((lhs Interval) (rhs Interval)) (Bool)
+  (and
+    (&gt; (begin lhs) (begin rhs))
+    (&lt; (end lhs) (end rhs))))
+</code></pre>
+
+<p>Let&rsquo;s create an overall schedule its duration we want to minimize in the end.
+And also create intervals for tasks such as making the dough, slicing onions, slicing tomatos, and so on:</p>
+
+<pre><code class="language-clojure">(declare-const schedule Interval)
+
+(declare-const makeDough Interval)
+(declare-const sliceOnions Interval)
+(declare-const sliceTomatos Interval)
+(declare-const bakeInOven Interval)
+(declare-const servePizza Interval)
+(declare-const pourWine Interval)
+</code></pre>
+
+<p>Now for the constraints, this is where we tell Z3 what properties we require in a solution.
+Here we tell Z3 that our schedule starts at time zero, intervals do not go back in time, our tasks should fall into the overall schedule, estimated durations for the tasks and finally the task&rsquo;s dependencies;</p>
+
+<pre><code class="language-clojure">(assert (and
+          (= 0 (begin schedule))
+          (intervalExpandsIntoFuture? schedule)
+ 
+          (intervalExpandsIntoFuture? makeDough)
+          (intervalExpandsIntoFuture? sliceOnions)
+          (intervalExpandsIntoFuture? sliceTomatos)
+          (intervalExpandsIntoFuture? bakeInOven)
+          (intervalExpandsIntoFuture? servePizza)
+          (intervalExpandsIntoFuture? pourWine)
+ 
+          (intervalDuringInterval? makeDough schedule)
+          (intervalDuringInterval? sliceOnions schedule)
+          (intervalDuringInterval? sliceTomatos schedule)
+          (intervalDuringInterval? bakeInOven schedule)
+          (intervalDuringInterval? servePizza schedule)
+          (intervalDuringInterval? pourWine schedule)
+ 
+          (&lt; 3 (intervalDuration makeDough))
+          (&lt; 2 (intervalDuration sliceOnions))
+          (&lt; 2 (intervalDuration sliceTomatos))
+          (= 35 (intervalDuration bakeInOven))
+          (&lt; 2 (intervalDuration servePizza))
+          (&lt; 2 (intervalDuration pourWine))
+ 
+          (intervalRequiresIntervalOver bakeInOven makeDough)
+          (intervalRequiresIntervalOver bakeInOven sliceOnions)
+          (intervalRequiresIntervalOver bakeInOven sliceTomatos)
+ 
+          (intervalRequiresIntervalOver servePizza bakeInOven))
+ 
+(minimize (intervalDuration schedule))
+</code></pre>
+
+<p>Boom!</p>
+
+<pre><code class="language-clojure">(- (end schedule) (begin schedule)) |-&gt; 46
+sat
+(model
+  (define-fun sliceTomatos () (IntervalT Int Int) (makeInterval 1 4))
+  (define-fun pourWine () (IntervalT Int Int) (makeInterval 36 39))
+  (define-fun schedule () (IntervalT Int Int) (makeInterval 0 46))
+  (define-fun servePizza () (IntervalT Int Int) (makeInterval 42 45))
+  (define-fun sliceOnions () (IntervalT Int Int) (makeInterval 1 4))
+  (define-fun makeDough () (IntervalT Int Int) (makeInterval 1 5))
+  (define-fun bakeInOven () (IntervalT Int Int) (makeInterval 6 41)))
+</code></pre>
+
+<p>Z3 wants us to make the dough in parallel with slicing tomatos and onions.
+We then have to bake the Pizza, and before it is done pour the wine; a few minutes later we serve the Pizza.
+Enjoy!</p>
+
+<p>Note: although this is an optimal schedule we certainly want to improve the constraints , e.g. you want to specify the number of cooks &ndash; but 70 lines of code is a good point to stop with an example.</p>
+
+<h2 id="further-remarks:619ef41b8227f3f88c96d2c07c6ce0b4">Further Remarks</h2>
+
+<p>Pandoc-generated notes are available <a href="https://gist.github.com/daniel-j-h/09c772b706db7a7240a4">here</a>.
+The parallel cooking code can be found <a href="https://gist.github.com/daniel-j-h/09c772b706db7a7240a4#file-9-parallelize-clj">here</a>.</p>
+
+<p>If you are still reading this, <a href="https://gist.github.com/daniel-j-h/09c772b706db7a7240a4#file-8-layouting-clj">here</a> is the promised layouting example including CSS from a solution, which is a bit more elaborate.</p>
+
+<p>See the official <a href="http://rise4fun.com/Z3Opt/tutorial/">nuZ tutorial</a> for more details.</p>
+
+<p>Note: beware issues in Z3/nuZ, <a href="https://github.com/Z3Prover/z3/issues/52">I reported one</a> during working on the parallel cooking example.</p>
+
+<h2 id="summary:619ef41b8227f3f88c96d2c07c6ce0b4">Summary</h2>
+
+<p>In preparation for optimizing parallel Pizza cooking you hopefully learnt something about Satisfiability (SAT), Satisfiability Modulo Theories (SMT) and its applications.
+We built an interval abstraction and specified constraints about interval durations and dependencies for cooking tasks.
+Using Z3&rsquo;s opt branch (nuZ) we then minimized the overall time it takes to cook and serve the Pizza.</p>
+
+<h2 id="comment:619ef41b8227f3f88c96d2c07c6ce0b4">Comment</h2>
+
+<p>Join the discussion over at [HackerNews]() or Reddit&rsquo;s [/r/programming]().</p>
+
+   </div>
+ </div>
+
+
+ <a href="https://twitter.com/share" class="twitter-share-button " data-size="small" data-count="none">Tweet</a>
+ <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+
+ <ul class="pager">
+     
+      &nbsp;<li class="next"><a href="https://daniel-j-h.github.io/post/intuitive-monadic-bind-kleisli-composition/"> An Intuitive Use-Case For Monadic Bind And Kleisli Composition</a></li>
+</ul>
+
+
+
+    </ul>
+    </div>
+    <footer>
+
+        <p class="text-muted credit">&copy; . All rights reserved. </p>
+    </footer>
+ 
+    <script src="/js/jquery-1.10.2.min.js"></script>
+    <script src="/js/bootstrap.min.js"></script>
+    <script src="/js/bootstrap.js"></script>
+    <script type="text/javascript" src="/js/hc.js"></script>
+</body>
+
+</html>
+
