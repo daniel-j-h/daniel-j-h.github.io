@@ -43,7 +43,7 @@ Sure, I can come up with an assignment:&lt;/p&gt;
 &lt;p&gt;Can you think of another one?&lt;/p&gt;
 
 &lt;p&gt;In general, this is the problem of satisfiability (SAT) which is NP-complete (read: hard).
-Fortunately there are SAT-solvers that help us determine if such an assignment exists.
+There are so called SAT-solvers that help us determine if such an assignment exists.
 Most if not all SAT-solvers work with the DIMACS format that standardizes how to encode the formula.
 The syntax is as follows:&lt;/p&gt;
 
@@ -88,18 +88,18 @@ p cnf 3 2
 &lt;p&gt;Now that we can encode problems for SAT solvers you may think:
 &amp;ldquo;I can encode integers as boolean literals (read: in binary), much as my computer does it&amp;rdquo; and this is exactly what Satisfiability Modulo Theories (SMT) is all about:
 an abstraction on top of SAT, that &amp;ldquo;knows&amp;rdquo; about so called theories.
-Here are some theories:&lt;/p&gt;
+Let&amp;rsquo;s take a look at some theories and &lt;a href=&#34;http://smtlib.cs.uiowa.edu/theories.shtml&#34;&gt;their documentation&lt;/a&gt;:&lt;/p&gt;
 
 &lt;ul&gt;
-&lt;li&gt;Theory of Integers: mathematical integers, not machine types&lt;/li&gt;
-&lt;li&gt;Theory of Reals: mathematical reals, not machine type&lt;/li&gt;
-&lt;li&gt;Theory of Bitvectors: vector of bits, for signed and unsigned two&amp;rsquo;s-complement calculations&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://smtlib.cs.uiowa.edu/theories/Ints.smt2&#34;&gt;Theory of Integers&lt;/a&gt;: mathematical integers, not machine type&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://smtlib.cs.uiowa.edu/theories/Reals.smt2&#34;&gt;Theory of Reals&lt;/a&gt;: mathematical reals, not machine type&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://smtlib.cs.uiowa.edu/theories/FixedSizeBitVectors.smt2&#34;&gt;Theory of Bitvectors&lt;/a&gt;: vector of bits, for signed and unsigned two&amp;rsquo;s-complement calculations&lt;/li&gt;
 &lt;/ul&gt;
 
 &lt;p&gt;In addition, SMT also &amp;ldquo;knows&amp;rdquo; about their rules, e.g. how to add two 32 bit unsigned integers represented as so called Bitvectors.
 This takes away the burden to manually implement unsigned addition for 32 boolean literals representing an integer in SAT.&lt;/p&gt;
 
-&lt;p&gt;As with the DIMACS format for SAT, there is a standardized format for SMT, the SMT-LIB 2.0 format.
+&lt;p&gt;As with the DIMACS format for SAT, there is a standardized format for SMT, the &lt;a href=&#34;http://smtlib.cs.uiowa.edu/language.shtml&#34;&gt;SMT-LIB 2.0 format&lt;/a&gt;.
 It may look rather Lisp&amp;rsquo;ish &amp;ndash; but don&amp;rsquo;t despair, it&amp;rsquo;s still easy to understand (if not, learn yourself some Clojure for great good &amp;ndash; or use Z3&amp;rsquo;s language bindings, e.g. the Python one).&lt;/p&gt;
 
 &lt;p&gt;Let&amp;rsquo;s see if we can find an assignment for two integers, satisfying the constraints that x is ten and y should be greater than zero and less then ten:&lt;/p&gt;
@@ -121,7 +121,11 @@ It may look rather Lisp&amp;rsquo;ish &amp;ndash; but don&amp;rsquo;t despair, i
 (exit)
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;Z3 comes up with the following:&lt;/p&gt;
+&lt;p&gt;It is a good idea take a look at the &lt;a href=&#34;http://smtlib.cs.uiowa.edu/language.shtml&#34;&gt;SMT-LIB 2.0 language specification&lt;/a&gt;, where its syntax is specified in Backus-Naur Form.
+For our example we have to enable model generation, otherwise the solver only tells us &amp;ldquo;sat&amp;rdquo; or &amp;ldquo;unsat&amp;rdquo;.
+We also have to set the &lt;a href=&#34;http://smtlib.cs.uiowa.edu/logics.shtml&#34;&gt;logic&lt;/a&gt; to only use unquantified linear integer arithmetic formulas. Finally we have to express constants as functions that take no arguments.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;rsquo;s see what Z3 comes up with:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;sat
 ((x 10))
@@ -142,8 +146,10 @@ You can learn more about it in these two papers:&lt;/p&gt;
 &lt;li&gt;&lt;a href=&#34;http://research.microsoft.com/en-US/people/nbjorner/scss2014.pdf&#34;&gt;nuZ - Maximal Satisfaction with Z3&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
+&lt;p&gt;What follows is strictly speaking not SMT-LIB 2.0 conforming, as there is no syntax for optimization in the specification. The following examples make use of Z3 extensions not only for optimization but also to shorten the amount of boilerplate we have to write, e.g. in creating constants. See &lt;a href=&#34;http://rise4fun.com/Z3/tutorial/guide&#34;&gt;Z3&amp;rsquo;s tutorial&lt;/a&gt; for a quick introduction.&lt;/p&gt;
+
 &lt;p&gt;Let&amp;rsquo;s start with an example:
-we want to maximize the sum of two integers under the constraints that the integer&amp;rsquo;s values should be between zero and ten:&lt;/p&gt;
+we want to maximize the sum of two integers under the constraints that the integer&amp;rsquo;s values should be between or equal to zero and ten:&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(declare-const x Int)
 (declare-const y Int)
@@ -162,8 +168,8 @@ we want to maximize the sum of two integers under the constraints that the integ
 &lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(+ x y) |-&amp;gt; 20
 sat
 (model
-  (define-fun y() Int 10)
-  (define-fun x() Int 10))
+  (define-fun y () Int 10)
+  (define-fun x () Int 10))
 &lt;/code&gt;&lt;/pre&gt;
 
 &lt;p&gt;Great! This is good enough for now, let&amp;rsquo;s optimize something!&lt;/p&gt;
@@ -179,23 +185,22 @@ Can we come up with a schedule that minimizes the overall time it takes, while r
 (define-sort Interval () (IntervalT Int Int))
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;This is rather ugly and I have to confess, I had to look up the exact syntax.
-But anyway, now we have an interval type (what is called Sort by the SMT people) with constructor &lt;em&gt;makeInterval&lt;/em&gt;, and  &lt;em&gt;begin&lt;/em&gt; and &lt;em&gt;end&lt;/em&gt; accessors.&lt;/p&gt;
+&lt;p&gt;We now created an interval type (what is called Sort by the SMT people) with constructor &lt;em&gt;makeInterval&lt;/em&gt;, and  &lt;em&gt;begin&lt;/em&gt; and &lt;em&gt;end&lt;/em&gt; accessors. For the exact syntax you may take a look at &lt;a href=&#34;http://rise4fun.com/Z3/tutorial/guide&#34;&gt;Z3&amp;rsquo;s datatypes documentation&lt;/a&gt;.&lt;/p&gt;
 
 &lt;p&gt;Let&amp;rsquo;s tell Z3 more about intervals.
-Intervals expand into the future, and have a duration.&lt;/p&gt;
+Valid intervals expand into the future, and have a duration.&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(define-fun intervalExpandsIntoFuture? ((interval Interval)) (Bool)
+&lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(define-fun intervalValid? ((interval Interval)) (Bool)
   (&amp;lt; (begin interval) (end interval)))
 
 (define-fun intervalDuration ((interval Interval)) (Int)
   (- (end interval) (begin interval)))
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;If an interval requires a sescond interval to be over, this can also be expressed.
+&lt;p&gt;If an interval requires a second interval to be completed, this can also be expressed (to specify dependencies).
 The same goes for the requirement of an interval being during a second interval:&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(define-fun intervalRequiresIntervalOver ((lhs Interval) (rhs Interval)) (Bool)
+&lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(define-fun intervalStartsAfterInterval? ((lhs Interval) (rhs Interval)) (Bool)
   (&amp;gt; (begin lhs) (end rhs)))
 
 (define-fun intervalDuringInterval? ((lhs Interval) (rhs Interval)) (Bool)
@@ -222,14 +227,14 @@ Here we tell Z3 that our schedule starts at time zero, intervals do not go back 
 
 &lt;pre&gt;&lt;code class=&#34;language-clojure&#34;&gt;(assert (and
           (= 0 (begin schedule))
-          (intervalExpandsIntoFuture? schedule)
+          (intervalValid? schedule)
  
-          (intervalExpandsIntoFuture? makeDough)
-          (intervalExpandsIntoFuture? sliceOnions)
-          (intervalExpandsIntoFuture? sliceTomatos)
-          (intervalExpandsIntoFuture? bakeInOven)
-          (intervalExpandsIntoFuture? servePizza)
-          (intervalExpandsIntoFuture? pourWine)
+          (intervalValid? makeDough)
+          (intervalValid? sliceOnions)
+          (intervalValid? sliceTomatos)
+          (intervalValid? bakeInOven)
+          (intervalValid? servePizza)
+          (intervalValid? pourWine)
  
           (intervalDuringInterval? makeDough schedule)
           (intervalDuringInterval? sliceOnions schedule)
@@ -245,11 +250,11 @@ Here we tell Z3 that our schedule starts at time zero, intervals do not go back 
           (&amp;lt; 2 (intervalDuration servePizza))
           (&amp;lt; 2 (intervalDuration pourWine))
  
-          (intervalRequiresIntervalOver bakeInOven makeDough)
-          (intervalRequiresIntervalOver bakeInOven sliceOnions)
-          (intervalRequiresIntervalOver bakeInOven sliceTomatos)
+          (intervalStartsAfterInterval? bakeInOven makeDough)
+          (intervalStartsAfterInterval? bakeInOven sliceOnions)
+          (intervalStartsAfterInterval? bakeInOven sliceTomatos)
  
-          (intervalRequiresIntervalOver servePizza bakeInOven))
+          (intervalStartsAfterInterval? servePizza bakeInOven))
  
 (minimize (intervalDuration schedule))
 &lt;/code&gt;&lt;/pre&gt;
@@ -272,11 +277,11 @@ sat
 We then have to bake the Pizza, and before it is done pour the wine; a few minutes later we serve the Pizza.
 Enjoy!&lt;/p&gt;
 
-&lt;p&gt;Note: although this is an optimal schedule we certainly want to improve the constraints , e.g. you want to specify the number of cooks &amp;ndash; but 70 lines of code is a good point to stop with an example.&lt;/p&gt;
+&lt;p&gt;Note: although this is an optimal schedule we certainly want to improve the constraints, e.g. you want to specify the number of cooks &amp;ndash; but 70 lines of code is a good point to stop with an example.&lt;/p&gt;
 
 &lt;h2 id=&#34;further-remarks:619ef41b8227f3f88c96d2c07c6ce0b4&#34;&gt;Further Remarks&lt;/h2&gt;
 
-&lt;p&gt;Pandoc-generated notes are available &lt;a href=&#34;https://gist.github.com/daniel-j-h/09c772b706db7a7240a4&#34;&gt;here&lt;/a&gt;.
+&lt;p&gt;My notes that can be used with pandoc and pandoc-citeproc are available &lt;a href=&#34;https://gist.github.com/daniel-j-h/09c772b706db7a7240a4&#34;&gt;here&lt;/a&gt;.
 The parallel cooking code can be found &lt;a href=&#34;https://gist.github.com/daniel-j-h/09c772b706db7a7240a4#file-9-parallelize-clj&#34;&gt;here&lt;/a&gt;.&lt;/p&gt;
 
 &lt;p&gt;If you are still reading this, &lt;a href=&#34;https://gist.github.com/daniel-j-h/09c772b706db7a7240a4#file-8-layouting-clj&#34;&gt;here&lt;/a&gt; is the promised layouting example including CSS from a solution, which is a bit more elaborate.&lt;/p&gt;
