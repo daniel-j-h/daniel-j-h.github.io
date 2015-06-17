@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LaTeX A Modern Approach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LaTeX A Modern Approach">
+  <link href="" rel="alternate" type="application/rss+xml" title="Daniel J. H." />
+  <link href="https://daniel-j-h.github.io/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://daniel-j-h.github.io/css/hc.css" rel="stylesheet">
+  <link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css" rel="stylesheet">
+  
+    
+    </head>
+    <body>
+<div class="nav-toggle"><i class="fa fa-bars fa-2x"></i> Herring Cove </div>
+      <div id = "wrapper">
+
+
+<div class="navbar navbar-default" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <p class="navbar-brand">Daniel J. H.</p>
+        </div>
+        <div class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+					
+					
+          </ul>
+        </div>
+      </div>
+    </div>
+
+
+
+       
+       <div id="sidebar-wrapper">
+        <ul class="sidebar-nav">
+					<img src="" />
+          <li class="sidebar-brand"><a href="https://daniel-j-h.github.io/"><h1 class="brand">Daniel J. H.</h1></a><h3></h3></li>
+          <hr />
+					
+          <hr />
+          <div id="social-wrapper">
+           <li> <a href="danieljayh"><i class="fa fa-twitter-square"></i> @twitter</a></li>
+           
+           
+           <li> <a href="daniel-j-h"><i class="fa fa-github-square"></i> github</a> </li>
+         </div>
+       </ul>
+     </div>
+
+
+
+     <div class="container">
+
+
+  <div id="article">
+   <div class="article-title">LaTeX A Modern Approach</div>
+   <p class="meta"><small>&nbsp;<i class="fa fa-calendar-o"></i> 2015-06-14</small></p> <hr/>
+   <div class="post">
+     
+
+<p>In which I fight my way through decades of legacy and bad habits to find beauty in producing documents with LaTeX.</p>
+
+<h2 id="motivation:48174f4215bbd58febb4c58acfc25505">Motivation</h2>
+
+<p>LaTeX is a pain to get started with, not only but mainly because of its legacy going back several decades.
+Then, you may ask, why do I still prefer it over LibreOffice, Word, you name it?
+There are compelling reasons ranging from proper kerning to small caps and old style figures.
+In short: it is still the only viable option for producing visually pleasing documents.
+For graphical side-by-side comparisons of what this means take a look <a href="http://nitens.org/taraborelli/latex">here</a> and <a href="http://www.zinktypografie.nl/latex.php?lang=en">here</a>.
+In the following I&rsquo;m going to show you important tricks and hints that helped me find beauty in producing documents with a modern LaTeX approach.</p>
+
+<p>I assume you are somewhat familiar with LaTeX basics.
+If not, course materials are available <a href="http://liinwww.ira.uka.de/~thw/vl-latex-co/">here</a> and <a href="https://www.sharelatex.com/learn">ShareLaTeX</a> is also quite good.</p>
+
+<h2 id="building-latex-documents:48174f4215bbd58febb4c58acfc25505">Building LaTex Documents</h2>
+
+<p>To compile a LaTeX document, you invoke the engine The Right Amount Of Times &trade;.
+Then bibtex for generating references.
+Then the LaTeX engine multiple times again to adapt the layout to the inserted references.</p>
+
+<p>Wat? There has to be a better way. And there is!</p>
+
+<h3 id="latexmk:48174f4215bbd58febb4c58acfc25505">latexmk</h3>
+
+<p>Introducing <a href="https://www.ctan.org/pkg/latexmk/?lang=en">latexmk</a>:
+latexmk is similar to make and knows how often and in which order to run the engine and bibtex.
+It is even able to generate external resources by invoking a makefile itself.
+I recommend you to take a look at its documentation, as it can be used to fully replace a makefile, with options to wait on changes, trigger rebuilds, and more.</p>
+
+<p>I came to the conclusion that wrapping latexmk in a makefile is still beneficial.
+Take a look at what my typical LaTeX makefile looks like:</p>
+
+<pre><code>engine=&quot;lualatex -interactive=nonstopmode --shell-escape %O %S&quot;
+refs = bibliography.bib
+sources = main.tex chapters/some-chapters.tex
+
+main.pdf: $(sources)
+	@latexmk -pdf -pdflatex=${engine} -bibtex $&lt;
+
+watch:
+	@while ! inotifywait --event modify $(refs) $(sources); do make; done
+
+spell:
+	@hunspell -l -t -d en_US -i utf-8 $(sources) | sort | uniq --ignore-case
+
+clean:
+	@latexmk -C
+
+.PHONY: watch spell clean
+</code></pre>
+
+<p>This provides you with several targets:
+While <code>make</code> builds the document once <code>make watch</code> listens on modifications to your sources and builds the document.
+This allows you to keep your document viewer open and get a updated document every time you save your source.
+<code>make spell</code> spell checks your sources with hunspell and understands the LaTeX syntax to some degree and <code>make clean</code> delegates to latexmk for removing temporary build files (you probably need to remove some files in addition).</p>
+
+<h3 id="lualatex:48174f4215bbd58febb4c58acfc25505">lualatex</h3>
+
+<p>I&rsquo;m using <code>lualatex</code> as an engine.
+You may want to replace it with <code>pdflatex</code> or <code>xelatex</code> if you prefer those.
+I found <code>lualatex</code> the only viable engine for basically two reasons:
+one, it is actively maintained and designed with a modern approach in mind (support for unicode, system fonts, etc.) and two, it does not have ridiculous memory constraints that you easily reach e.g. when plotting charts.</p>
+
+<p>The only downside in using <code>lualatex</code> I found is an increase in build times.
+This is a bit frustrating for when using the <code>make watch</code> target and then having to wait multiple seconds until the document gets refreshed in the viewer.</p>
+
+<p>Read the <a href="https://www.ctan.org/pkg/lualatex-doc?lang=en">lualatex documentation</a> if you want to make the switch.
+Also note that switching to <code>lualatex</code> is not just replacing the engine; you need to switch out a few packages &mdash; but all this is documented and is rather easy to do.</p>
+
+<p>In the following I&rsquo;m assuming you are using <code>lualatex</code> as an engine.
+Now that we can build documents let&rsquo;s take a look at how to design them!</p>
+
+<h2 id="designing-the-document:48174f4215bbd58febb4c58acfc25505">Designing The Document</h2>
+
+<p>In the following I&rsquo;m going to show you how to design your document in a modern approach, making use of some awesome packages.</p>
+
+<h3 id="document-classes:48174f4215bbd58febb4c58acfc25505">Document Classes</h3>
+
+<p>Document classes describe the document&rsquo;s purpose: is it a book, a report or even a letter?
+Unfortunately, there is almost no case for using the ones LaTeX comes with.
+Instead I recommend the KOMA-Script bundle, that includes modern replacements for LaTeX own document classes.
+As usual the <a href="https://www.ctan.org/pkg/koma-script?lang=en">koma-script documentation</a> is superb &mdash; read it!</p>
+
+<p>Switching to the KOMA-Script document classes is as easy as changing your preamble to something along the lines of:</p>
+
+<pre><code>\documentclass[draft=false
+             , BCOR=0mm  % correct binding offset when printing
+             , 12pt
+             , headings=big
+             , chapterprefix=true
+             , numbers=noenddot]{scrreprt}
+</code></pre>
+
+<h3 id="warnings:48174f4215bbd58febb4c58acfc25505">Warnings</h3>
+
+<p>There is a package that you should include first: <a href="https://www.ctan.org/pkg/nag">nag</a>.
+Why first? Because it warns you about obsolete commands and package.</p>
+
+<pre><code>\usepackage[l2tabu,orthodox]{nag}
+</code></pre>
+
+<h3 id="typography:48174f4215bbd58febb4c58acfc25505">Typography</h3>
+
+<p>If you have the time and interest I really recommend you getting <a href="http://www.goodreads.com/book/show/44735.The_Elements_of_Typographic_Style">The Elements of Typographic Style</a>.
+A quick introduction is at <a href="http://practicaltypography.com/">Butterick&rsquo;s Practical Typography</a> that is quite good but also opinionated to some degree.</p>
+
+<p>For anything font-related I recommend <a href="https://www.ctan.org/pkg/fontspec?lang=en">fontspec</a>.
+And for improving details you had no idea about, take a look at <a href="https://www.ctan.org/pkg/microtype">microtype</a> (with the most beautifully looking documentation)!</p>
+
+<pre><code>\usepackage{fontspec}
+\usepackage{microtype}
+\frenchspacing
+</code></pre>
+
+<p><code>\frenchspacing</code> disables two spaces after a dot, which is what you normally want.
+Also read the documentation before adding options; microtype for example is smart enough to do its best in selecting options depending on engine and environment.
+In determining which fonts are getting used the <code>pdffonts</code> tool from the <code>poppler-utils</code> package is quite helpful.</p>
+
+<p>Latin Modern is a good default, but I wanted to use <a href="https://en.wikipedia.org/wiki/Palatino">Hermann Zapf&rsquo;s Palatino</a> as main font.</p>
+
+<blockquote>
+<p>Now is the right time to watch <a href="https://www.youtube.com/watch?v=3jD4CpzIuR4">The Art Of Hermann Zapf</a>.</p>
+</blockquote>
+
+<p>Most good looking fonts that include small caps, old style figures and more, you have to pay for.
+Fortunately there is the <a href="http://www.gust.org.pl/projects/e-foundry/tex-gyre">TeX Gyre</a> project that includes a Palatino remake with <code>TeX Gyre Pagella</code>.
+In case you make use of math symbols there is also the recent <a href="http://www.gust.org.pl/projects/e-foundry/tg-math/index_html">TeX Gyre Math</a> project.</p>
+
+<pre><code>\usepackage{unicode-math}
+\setmainfont[Ligatures=TeX, Numbers=OldStyle]{TeX Gyre Pagella}
+\setmathfont{TeX Gyre Pagella Math}
+</code></pre>
+
+<p>TeX ligatures are e.g. for enabling en-dash and em-dash ligatures.
+On a related note, learn the difference between a hyphen -, the en-dash &ndash; and the em-dash &mdash;!
+Also note that Pagella&rsquo;s ligatures <a href="http://tex.stackexchange.com/a/94411">are ligatures but do not look as fused as in other fonts</a>.</p>
+
+<p>After some research I found sans and mono fonts (that can be scaled automatically to the main font) beautifully matching Palatino:</p>
+
+<pre><code>\setsansfont[Scale=MatchLowercase]{Bitstream Vera Sans}
+\setmonofont[Scale=MatchLowercase]{Inconsolata}
+</code></pre>
+
+<p>Finally, KOMA-Script sets dispositions like <code>\section</code> in bold sans by default.
+In my opinion the switch from the main text&rsquo;s serif font to bold sans is quite distracting.
+Instead I&rsquo;m using serif small caps for dispositions (and the page header) that are not bold by default:</p>
+
+<pre><code>\addtokomafont{disposition}{\rmfamily}
+\setkomafont{pagehead}{\scshape}
+\setkomafont{disposition}{\scshape}
+</code></pre>
+
+<h3 id="language:48174f4215bbd58febb4c58acfc25505">Language</h3>
+
+<p><code>lualatex</code> works well together with <code>polyglossia</code> &mdash; use it instead of babel:</p>
+
+<pre><code>\usepackage{polyglossia}
+\setdefaultlanguage{english}
+</code></pre>
+
+<h3 id="tables:48174f4215bbd58febb4c58acfc25505">Tables</h3>
+
+<p>I found <a href="https://www.ctan.org/pkg/booktabs?lang=en">booktabs</a> to produce professional looking tables.
+Its documentation also gives great hints how to design your table:</p>
+
+<pre><code>\usepackage{booktabs}
+</code></pre>
+
+<h3 id="colors:48174f4215bbd58febb4c58acfc25505">Colors</h3>
+
+<p>I highly recommend using <a href="http://colorbrewer2.org/">ColorBrewer</a> for selecting an appropriate color palette:</p>
+
+<pre><code>\usepackage{xcolor}
+
+\definecolor{primary}{RGB}{117,112,179}
+\definecolor{secondary}{RGB}{27,158,119}
+\definecolor{tertiary}{RGB}{217,95,2}
+</code></pre>
+
+<h3 id="source-code:48174f4215bbd58febb4c58acfc25505">Source Code</h3>
+
+<p>The <a href="https://www.ctan.org/pkg/minted?lang=en">minted</a> package makes use of <a href="http://pygments.org/">Pygments</a> for syntax highlighting.
+This approach is by far more robust than other listings packages:</p>
+
+<pre><code>\usepackage{minted}
+</code></pre>
+
+<p>Not to sound like a perfectionist, but there is a way to <a href="http://pygments.org/docs/styles/#creating-own-styles">adapt the color scheme to your document&rsquo;s color palette</a>.
+Using the color scheme requires creating and then registering your plugin, which is quite a bit effort.</p>
+
+<h3 id="plots:48174f4215bbd58febb4c58acfc25505">Plots</h3>
+
+<p>I came to the conclusion that native LaTeX graphics just look the best.
+For this I&rsquo;m using <a href="https://www.ctan.org/pkg/pgfplots?lang=en">pgfplots</a>.</p>
+
+<p>What I&rsquo;m doing is the following:</p>
+
+<ul>
+<li>save my experiment&rsquo;s data in an interchangable format, e.g. csv</li>
+<li>load and analyze the data, e.g. with Pandas (save scripts for reproducibility)</li>
+<li>save the processed data in a format that pgfplot understands</li>
+<li>use pgfplots to create beautiful plots</li>
+</ul>
+
+<p>This works great for plot types that are supported by pgfplots (quite a large number, skim the documentation).
+I also recommend using the <a href="https://www.ctan.org/pkg/units?lang=en">units</a> package in addition and setting some sane defaults globally:</p>
+
+<pre><code>\usepackage{tikz}
+\usepackage{pgfplots}
+\usepgfplotslibrary{units}
+\SendSettingsToPgf
+\usepgfplotslibrary{statistics}
+
+\pgfplotscreateplotcyclelist{colorscheme}{{primary},{secondary},{tertiary}}
+
+\pgfplotsset{compat=1.11
+           , tick label style = {font=\tiny}
+	   , % etc.
+}
+</code></pre>
+
+<p>In the following I will show you how to produce a few beautiful looking plots, with negative space as a design decision.
+The general idea is to wrap your plot in a figure with <code>htb</code> as placement constraint, i.e. place here, top or bottom but never on a separate page.
+In addition you want a caption and a label for all your plots.</p>
+
+<pre><code>\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[options]
+      % plot specifics
+    \end{axis}
+  \end{tikzpicture}
+  \caption{My caption}
+  \label{fig: my-figure}
+\end{figure}
+</code></pre>
+
+<p>For printing I keep a separate black and white color palette around, as it is hard to find one that is very good for both scenarios. In the following I&rsquo;m using the color palette from above.</p>
+
+<blockquote>
+<p>Consult <a href="http://www.goodreads.com/book/show/17745.Envisioning_Information">Envisioning Information</a> and <a href="http://www.goodreads.com/book/show/17744.The_Visual_Display_of_Quantitative_Information">The Visual Display of Quantitative Information</a> on visual data representation</p>
+</blockquote>
+
+<h4 id="boxplot:48174f4215bbd58febb4c58acfc25505">Boxplot</h4>
+
+<p>Here&rsquo;s an example for a boxplot as wide as the main text&rsquo;s flow and its height respecting the golden ratio for a visually pleasing aspect ratio.
+The box&rsquo;s width are also proportional to the group&rsquo;s sizes &mdash; this has to be calculated externally:</p>
+
+<pre><code>\begin{axis}[width=\textwidth
+           , height=0.618\textwidth % golden ratio
+           , boxplot/draw direction=y
+           , xlabel={year}
+           , ylabel={sleepiness}
+           , ymin=0, ymax=1
+           , xtick={1,2,3,4,5,6,7}
+           , xticklabels={2009, 2010, 2011, 2012, 2013, 2014, 2015}
+           , enlargelimits=0
+           , enlarge x limits]
+  % box extend is calculated as sqrt(group's size) normalized to [0,1], expressing sample size in boxplot
+  \addplot+[boxplot, box extend=0.869] table[row sep=newline,y index=0]{data/boxplot-2009.csv};
+  \addplot+[boxplot, box extend=0.869] table[row sep=newline,y index=0]{data/boxplot-2010.csv};
+  \addplot+[boxplot, box extend=0.865] table[row sep=newline,y index=0]{data/boxplot-2011.csv};
+  \addplot+[boxplot, box extend=1.000] table[row sep=newline,y index=0]{data/boxplot-2012.csv};
+  \addplot+[boxplot, box extend=0.478] table[row sep=newline,y index=0]{data/boxplot-2013.csv};
+  \addplot+[boxplot, box extend=0.307] table[row sep=newline,y index=0]{data/boxplot-2014.csv};
+  \addplot+[boxplot, box extend=0.517] table[row sep=newline,y index=0]{data/boxplot-2015.csv};
+\end{axis}
+</code></pre>
+
+<p><img src="/images/latex-a-modern-approach/pgfplots-boxplot.png" alt="Boxplot generated with pgfplots" />
+</p>
+
+<h4 id="lineplot:48174f4215bbd58febb4c58acfc25505">Lineplot</h4>
+
+<p>Here&rsquo;s a trend plot, now only constraining the height to be equal to the golden ratio respecting plots:</p>
+
+<pre><code>\begin{axis}[height=0.681\textwidth,
+           , xlabel={elapsed time}
+           , ylabel={coffee intake}
+           , x unit=\si{\second}
+           , y unit=\si{\liter}
+           , xmin=0,xmax=30
+           , ymin=0,ymax=400
+           , smooth]
+  \addplot table[x=elapsed,y=intake,col sep=comma]{data/coffee-deadline.csv}; \addlegendentry{deadline};
+  \addplot table[x=elapsed,y=intake,col sep=comma]{data/coffee-normal.csv}; \addlegendentry{normal};
+\end{axis}
+</code></pre>
+
+<p><img src="/images/latex-a-modern-approach/pgfplots-lineplot.png" alt="Lineplot generated with pgfplots" />
+</p>
+
+<h4 id="barplot:48174f4215bbd58febb4c58acfc25505">Barplot</h4>
+
+<p>And finally a barplot, with the trick of grid lines that are on top and of the same color as the background, as recommended by Edward Tufte:</p>
+
+<pre><code>\begin{axis}[height=0.681\textwidth
+           , ybar
+           , xlabel={time to deadline}
+           , ylabel={calorie intake}
+           , x unit=\si{\second}
+           , y unit=\si{\joule}
+           , change y base
+           , y SI prefix=kilo
+           , ymajorgrids=true
+           , axis on top
+           , grid style=white
+           , major tick length=0pt
+           , ymin=0
+           , xtick=data
+         ]
+  \addplot+[draw opacity=0] table[x=time,y=intake,col sep=comma]{data/intake-food.csv}; \addlegendentry{food}
+  \addplot+[draw opacity=0] table[x=time,y=intake,col sep=comma]{data/intake-coffee.csv}; \addlegendentry{coffee}
+  \addplot+[draw opacity=0] table[x=time,y=intake,col sep=comma]{data/intake-overall.csv}; \addlegendentry{overall}
+\end{axis}
+</code></pre>
+
+<p><img src="/images/latex-a-modern-approach/pgfplots-barplot.png" alt="Stacked plot generated with pgfplots" />
+</p>
+
+<h3 id="references:48174f4215bbd58febb4c58acfc25505">References</h3>
+
+<p>I found Biber to be great as a modern BibTeX replacement.
+There are a few tricks required, e.g. for proper quotes in the references, otherwise it Just Works &trade;:</p>
+
+<pre><code>\usepackage[strict=true]{csquotes}
+\usepackage[backend=biber
+          , bibencoding=utf-8
+          , safeinputenc
+          , bibwarn=true
+          , style=alphabetic
+          , doi=false
+          , isbn=false
+          , url=false]{biblatex}
+\addbibresource{bibliography.bib}
+</code></pre>
+
+<h3 id="scaling:48174f4215bbd58febb4c58acfc25505">Scaling</h3>
+
+<p>The last trick is to disable print scaling, otherwise your document may be scaled and you absolutely do not want this:</p>
+
+<pre><code>\usepackage{hyperref}
+\hypersetup{pdfauthor={My Name}
+          , pdftitle={My Title}
+          , pdfprintscaling=None}
+</code></pre>
+
+<h3 id="markdown:48174f4215bbd58febb4c58acfc25505">Markdown</h3>
+
+<p>There is a trick that I&rsquo;m using for writing down notes in markdown and producing a pdf from it.
+It&rsquo;s the awesome <a href="http://pandoc.org/">pandoc</a> tool that is able to convert between a ridiculous amount of formats.
+For this I have a makefile with a target similar to:</p>
+
+<pre><code>pandoc --filter=pandoc-citeproc --bibliography=$(ref) --toc --latex-engine=$(engine) -o $(target) $(src)
+</code></pre>
+
+<h2 id="inspiration:48174f4215bbd58febb4c58acfc25505">Inspiration</h2>
+
+<blockquote>
+<p><a href="https://vimeo.com/45232468">Inge Druckrey: Teaching to See</a></p>
+</blockquote>
+
+   </div>
+ </div>
+
+
+ <a href="https://twitter.com/share" class="twitter-share-button " data-size="small" data-count="none">Tweet</a>
+ <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+
+ <ul class="pager">
+     
+      &nbsp;<li class="next"><a href="https://daniel-j-h.github.io/post/satisfiability-modulo-theories-for-parallel-cooking-and-other-optimizations/"> Satisfiability Modulo Theories For Parallel Cooking And Other Optimizations</a></li>
+</ul>
+
+
+
+    </ul>
+    </div>
+    <footer>
+
+        <p class="text-muted credit">&copy; . All rights reserved. </p>
+    </footer>
+ 
+    <script src="/js/jquery-1.10.2.min.js"></script>
+    <script src="/js/bootstrap.min.js"></script>
+    <script src="/js/bootstrap.js"></script>
+    <script type="text/javascript" src="/js/hc.js"></script>
+</body>
+
+</html>
+

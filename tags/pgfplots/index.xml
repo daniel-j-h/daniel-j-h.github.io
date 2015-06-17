@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Pgfplots on Daniel J. H.</title>
+    <link>https://daniel-j-h.github.io/tags/pgfplots/</link>
+    <description>Recent content in Pgfplots on Daniel J. H.</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 14 Jun 2015 21:53:57 +0200</lastBuildDate>
+    <atom:link href="https://daniel-j-h.github.io/tags/pgfplots/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>LaTeX A Modern Approach</title>
+      <link>https://daniel-j-h.github.io/post/latex-a-modern-approach/</link>
+      <pubDate>Sun, 14 Jun 2015 21:53:57 +0200</pubDate>
+      
+      <guid>https://daniel-j-h.github.io/post/latex-a-modern-approach/</guid>
+      <description>
+
+&lt;p&gt;In which I fight my way through decades of legacy and bad habits to find beauty in producing documents with LaTeX.&lt;/p&gt;
+
+&lt;h2 id=&#34;motivation:48174f4215bbd58febb4c58acfc25505&#34;&gt;Motivation&lt;/h2&gt;
+
+&lt;p&gt;LaTeX is a pain to get started with, not only but mainly because of its legacy going back several decades.
+Then, you may ask, why do I still prefer it over LibreOffice, Word, you name it?
+There are compelling reasons ranging from proper kerning to small caps and old style figures.
+In short: it is still the only viable option for producing visually pleasing documents.
+For graphical side-by-side comparisons of what this means take a look &lt;a href=&#34;http://nitens.org/taraborelli/latex&#34;&gt;here&lt;/a&gt; and &lt;a href=&#34;http://www.zinktypografie.nl/latex.php?lang=en&#34;&gt;here&lt;/a&gt;.
+In the following I&amp;rsquo;m going to show you important tricks and hints that helped me find beauty in producing documents with a modern LaTeX approach.&lt;/p&gt;
+
+&lt;p&gt;I assume you are somewhat familiar with LaTeX basics.
+If not, course materials are available &lt;a href=&#34;http://liinwww.ira.uka.de/~thw/vl-latex-co/&#34;&gt;here&lt;/a&gt; and &lt;a href=&#34;https://www.sharelatex.com/learn&#34;&gt;ShareLaTeX&lt;/a&gt; is also quite good.&lt;/p&gt;
+
+&lt;h2 id=&#34;building-latex-documents:48174f4215bbd58febb4c58acfc25505&#34;&gt;Building LaTex Documents&lt;/h2&gt;
+
+&lt;p&gt;To compile a LaTeX document, you invoke the engine The Right Amount Of Times &amp;trade;.
+Then bibtex for generating references.
+Then the LaTeX engine multiple times again to adapt the layout to the inserted references.&lt;/p&gt;
+
+&lt;p&gt;Wat? There has to be a better way. And there is!&lt;/p&gt;
+
+&lt;h3 id=&#34;latexmk:48174f4215bbd58febb4c58acfc25505&#34;&gt;latexmk&lt;/h3&gt;
+
+&lt;p&gt;Introducing &lt;a href=&#34;https://www.ctan.org/pkg/latexmk/?lang=en&#34;&gt;latexmk&lt;/a&gt;:
+latexmk is similar to make and knows how often and in which order to run the engine and bibtex.
+It is even able to generate external resources by invoking a makefile itself.
+I recommend you to take a look at its documentation, as it can be used to fully replace a makefile, with options to wait on changes, trigger rebuilds, and more.&lt;/p&gt;
+
+&lt;p&gt;I came to the conclusion that wrapping latexmk in a makefile is still beneficial.
+Take a look at what my typical LaTeX makefile looks like:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;engine=&amp;quot;lualatex -interactive=nonstopmode --shell-escape %O %S&amp;quot;
+refs = bibliography.bib
+sources = main.tex chapters/some-chapters.tex
+
+main.pdf: $(sources)
+	@latexmk -pdf -pdflatex=${engine} -bibtex $&amp;lt;
+
+watch:
+	@while ! inotifywait --event modify $(refs) $(sources); do make; done
+
+spell:
+	@hunspell -l -t -d en_US -i utf-8 $(sources) | sort | uniq --ignore-case
+
+clean:
+	@latexmk -C
+
+.PHONY: watch spell clean
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This provides you with several targets:
+While &lt;code&gt;make&lt;/code&gt; builds the document once &lt;code&gt;make watch&lt;/code&gt; listens on modifications to your sources and builds the document.
+This allows you to keep your document viewer open and get a updated document every time you save your source.
+&lt;code&gt;make spell&lt;/code&gt; spell checks your sources with hunspell and understands the LaTeX syntax to some degree and &lt;code&gt;make clean&lt;/code&gt; delegates to latexmk for removing temporary build files (you probably need to remove some files in addition).&lt;/p&gt;
+
+&lt;h3 id=&#34;lualatex:48174f4215bbd58febb4c58acfc25505&#34;&gt;lualatex&lt;/h3&gt;
+
+&lt;p&gt;I&amp;rsquo;m using &lt;code&gt;lualatex&lt;/code&gt; as an engine.
+You may want to replace it with &lt;code&gt;pdflatex&lt;/code&gt; or &lt;code&gt;xelatex&lt;/code&gt; if you prefer those.
+I found &lt;code&gt;lualatex&lt;/code&gt; the only viable engine for basically two reasons:
+one, it is actively maintained and designed with a modern approach in mind (support for unicode, system fonts, etc.) and two, it does not have ridiculous memory constraints that you easily reach e.g. when plotting charts.&lt;/p&gt;
+
+&lt;p&gt;The only downside in using &lt;code&gt;lualatex&lt;/code&gt; I found is an increase in build times.
+This is a bit frustrating for when using the &lt;code&gt;make watch&lt;/code&gt; target and then having to wait multiple seconds until the document gets refreshed in the viewer.&lt;/p&gt;
+
+&lt;p&gt;Read the &lt;a href=&#34;https://www.ctan.org/pkg/lualatex-doc?lang=en&#34;&gt;lualatex documentation&lt;/a&gt; if you want to make the switch.
+Also note that switching to &lt;code&gt;lualatex&lt;/code&gt; is not just replacing the engine; you need to switch out a few packages &amp;mdash; but all this is documented and is rather easy to do.&lt;/p&gt;
+
+&lt;p&gt;In the following I&amp;rsquo;m assuming you are using &lt;code&gt;lualatex&lt;/code&gt; as an engine.
+Now that we can build documents let&amp;rsquo;s take a look at how to design them!&lt;/p&gt;
+
+&lt;h2 id=&#34;designing-the-document:48174f4215bbd58febb4c58acfc25505&#34;&gt;Designing The Document&lt;/h2&gt;
+
+&lt;p&gt;In the following I&amp;rsquo;m going to show you how to design your document in a modern approach, making use of some awesome packages.&lt;/p&gt;
+
+&lt;h3 id=&#34;document-classes:48174f4215bbd58febb4c58acfc25505&#34;&gt;Document Classes&lt;/h3&gt;
+
+&lt;p&gt;Document classes describe the document&amp;rsquo;s purpose: is it a book, a report or even a letter?
+Unfortunately, there is almost no case for using the ones LaTeX comes with.
+Instead I recommend the KOMA-Script bundle, that includes modern replacements for LaTeX own document classes.
+As usual the &lt;a href=&#34;https://www.ctan.org/pkg/koma-script?lang=en&#34;&gt;koma-script documentation&lt;/a&gt; is superb &amp;mdash; read it!&lt;/p&gt;
+
+&lt;p&gt;Switching to the KOMA-Script document classes is as easy as changing your preamble to something along the lines of:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\documentclass[draft=false
+             , BCOR=0mm  % correct binding offset when printing
+             , 12pt
+             , headings=big
+             , chapterprefix=true
+             , numbers=noenddot]{scrreprt}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;warnings:48174f4215bbd58febb4c58acfc25505&#34;&gt;Warnings&lt;/h3&gt;
+
+&lt;p&gt;There is a package that you should include first: &lt;a href=&#34;https://www.ctan.org/pkg/nag&#34;&gt;nag&lt;/a&gt;.
+Why first? Because it warns you about obsolete commands and package.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage[l2tabu,orthodox]{nag}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;typography:48174f4215bbd58febb4c58acfc25505&#34;&gt;Typography&lt;/h3&gt;
+
+&lt;p&gt;If you have the time and interest I really recommend you getting &lt;a href=&#34;http://www.goodreads.com/book/show/44735.The_Elements_of_Typographic_Style&#34;&gt;The Elements of Typographic Style&lt;/a&gt;.
+A quick introduction is at &lt;a href=&#34;http://practicaltypography.com/&#34;&gt;Butterick&amp;rsquo;s Practical Typography&lt;/a&gt; that is quite good but also opinionated to some degree.&lt;/p&gt;
+
+&lt;p&gt;For anything font-related I recommend &lt;a href=&#34;https://www.ctan.org/pkg/fontspec?lang=en&#34;&gt;fontspec&lt;/a&gt;.
+And for improving details you had no idea about, take a look at &lt;a href=&#34;https://www.ctan.org/pkg/microtype&#34;&gt;microtype&lt;/a&gt; (with the most beautifully looking documentation)!&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{fontspec}
+\usepackage{microtype}
+\frenchspacing
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;\frenchspacing&lt;/code&gt; disables two spaces after a dot, which is what you normally want.
+Also read the documentation before adding options; microtype for example is smart enough to do its best in selecting options depending on engine and environment.
+In determining which fonts are getting used the &lt;code&gt;pdffonts&lt;/code&gt; tool from the &lt;code&gt;poppler-utils&lt;/code&gt; package is quite helpful.&lt;/p&gt;
+
+&lt;p&gt;Latin Modern is a good default, but I wanted to use &lt;a href=&#34;https://en.wikipedia.org/wiki/Palatino&#34;&gt;Hermann Zapf&amp;rsquo;s Palatino&lt;/a&gt; as main font.&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Now is the right time to watch &lt;a href=&#34;https://www.youtube.com/watch?v=3jD4CpzIuR4&#34;&gt;The Art Of Hermann Zapf&lt;/a&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Most good looking fonts that include small caps, old style figures and more, you have to pay for.
+Fortunately there is the &lt;a href=&#34;http://www.gust.org.pl/projects/e-foundry/tex-gyre&#34;&gt;TeX Gyre&lt;/a&gt; project that includes a Palatino remake with &lt;code&gt;TeX Gyre Pagella&lt;/code&gt;.
+In case you make use of math symbols there is also the recent &lt;a href=&#34;http://www.gust.org.pl/projects/e-foundry/tg-math/index_html&#34;&gt;TeX Gyre Math&lt;/a&gt; project.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{unicode-math}
+\setmainfont[Ligatures=TeX, Numbers=OldStyle]{TeX Gyre Pagella}
+\setmathfont{TeX Gyre Pagella Math}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;TeX ligatures are e.g. for enabling en-dash and em-dash ligatures.
+On a related note, learn the difference between a hyphen -, the en-dash &amp;ndash; and the em-dash &amp;mdash;!
+Also note that Pagella&amp;rsquo;s ligatures &lt;a href=&#34;http://tex.stackexchange.com/a/94411&#34;&gt;are ligatures but do not look as fused as in other fonts&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;After some research I found sans and mono fonts (that can be scaled automatically to the main font) beautifully matching Palatino:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\setsansfont[Scale=MatchLowercase]{Bitstream Vera Sans}
+\setmonofont[Scale=MatchLowercase]{Inconsolata}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Finally, KOMA-Script sets dispositions like &lt;code&gt;\section&lt;/code&gt; in bold sans by default.
+In my opinion the switch from the main text&amp;rsquo;s serif font to bold sans is quite distracting.
+Instead I&amp;rsquo;m using serif small caps for dispositions (and the page header) that are not bold by default:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\addtokomafont{disposition}{\rmfamily}
+\setkomafont{pagehead}{\scshape}
+\setkomafont{disposition}{\scshape}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;language:48174f4215bbd58febb4c58acfc25505&#34;&gt;Language&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;lualatex&lt;/code&gt; works well together with &lt;code&gt;polyglossia&lt;/code&gt; &amp;mdash; use it instead of babel:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{polyglossia}
+\setdefaultlanguage{english}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;tables:48174f4215bbd58febb4c58acfc25505&#34;&gt;Tables&lt;/h3&gt;
+
+&lt;p&gt;I found &lt;a href=&#34;https://www.ctan.org/pkg/booktabs?lang=en&#34;&gt;booktabs&lt;/a&gt; to produce professional looking tables.
+Its documentation also gives great hints how to design your table:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{booktabs}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;colors:48174f4215bbd58febb4c58acfc25505&#34;&gt;Colors&lt;/h3&gt;
+
+&lt;p&gt;I highly recommend using &lt;a href=&#34;http://colorbrewer2.org/&#34;&gt;ColorBrewer&lt;/a&gt; for selecting an appropriate color palette:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{xcolor}
+
+\definecolor{primary}{RGB}{117,112,179}
+\definecolor{secondary}{RGB}{27,158,119}
+\definecolor{tertiary}{RGB}{217,95,2}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;source-code:48174f4215bbd58febb4c58acfc25505&#34;&gt;Source Code&lt;/h3&gt;
+
+&lt;p&gt;The &lt;a href=&#34;https://www.ctan.org/pkg/minted?lang=en&#34;&gt;minted&lt;/a&gt; package makes use of &lt;a href=&#34;http://pygments.org/&#34;&gt;Pygments&lt;/a&gt; for syntax highlighting.
+This approach is by far more robust than other listings packages:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{minted}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Not to sound like a perfectionist, but there is a way to &lt;a href=&#34;http://pygments.org/docs/styles/#creating-own-styles&#34;&gt;adapt the color scheme to your document&amp;rsquo;s color palette&lt;/a&gt;.
+Using the color scheme requires creating and then registering your plugin, which is quite a bit effort.&lt;/p&gt;
+
+&lt;h3 id=&#34;plots:48174f4215bbd58febb4c58acfc25505&#34;&gt;Plots&lt;/h3&gt;
+
+&lt;p&gt;I came to the conclusion that native LaTeX graphics just look the best.
+For this I&amp;rsquo;m using &lt;a href=&#34;https://www.ctan.org/pkg/pgfplots?lang=en&#34;&gt;pgfplots&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;What I&amp;rsquo;m doing is the following:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;save my experiment&amp;rsquo;s data in an interchangable format, e.g. csv&lt;/li&gt;
+&lt;li&gt;load and analyze the data, e.g. with Pandas (save scripts for reproducibility)&lt;/li&gt;
+&lt;li&gt;save the processed data in a format that pgfplot understands&lt;/li&gt;
+&lt;li&gt;use pgfplots to create beautiful plots&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;This works great for plot types that are supported by pgfplots (quite a large number, skim the documentation).
+I also recommend using the &lt;a href=&#34;https://www.ctan.org/pkg/units?lang=en&#34;&gt;units&lt;/a&gt; package in addition and setting some sane defaults globally:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{tikz}
+\usepackage{pgfplots}
+\usepgfplotslibrary{units}
+\SendSettingsToPgf
+\usepgfplotslibrary{statistics}
+
+\pgfplotscreateplotcyclelist{colorscheme}{{primary},{secondary},{tertiary}}
+
+\pgfplotsset{compat=1.11
+           , tick label style = {font=\tiny}
+	   , % etc.
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In the following I will show you how to produce a few beautiful looking plots, with negative space as a design decision.
+The general idea is to wrap your plot in a figure with &lt;code&gt;htb&lt;/code&gt; as placement constraint, i.e. place here, top or bottom but never on a separate page.
+In addition you want a caption and a label for all your plots.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[options]
+      % plot specifics
+    \end{axis}
+  \end{tikzpicture}
+  \caption{My caption}
+  \label{fig: my-figure}
+\end{figure}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;For printing I keep a separate black and white color palette around, as it is hard to find one that is very good for both scenarios. In the following I&amp;rsquo;m using the color palette from above.&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Consult &lt;a href=&#34;http://www.goodreads.com/book/show/17745.Envisioning_Information&#34;&gt;Envisioning Information&lt;/a&gt; and &lt;a href=&#34;http://www.goodreads.com/book/show/17744.The_Visual_Display_of_Quantitative_Information&#34;&gt;The Visual Display of Quantitative Information&lt;/a&gt; on visual data representation&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h4 id=&#34;boxplot:48174f4215bbd58febb4c58acfc25505&#34;&gt;Boxplot&lt;/h4&gt;
+
+&lt;p&gt;Here&amp;rsquo;s an example for a boxplot as wide as the main text&amp;rsquo;s flow and its height respecting the golden ratio for a visually pleasing aspect ratio.
+The box&amp;rsquo;s width are also proportional to the group&amp;rsquo;s sizes &amp;mdash; this has to be calculated externally:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\begin{axis}[width=\textwidth
+           , height=0.618\textwidth % golden ratio
+           , boxplot/draw direction=y
+           , xlabel={year}
+           , ylabel={sleepiness}
+           , ymin=0, ymax=1
+           , xtick={1,2,3,4,5,6,7}
+           , xticklabels={2009, 2010, 2011, 2012, 2013, 2014, 2015}
+           , enlargelimits=0
+           , enlarge x limits]
+  % box extend is calculated as sqrt(group&#39;s size) normalized to [0,1], expressing sample size in boxplot
+  \addplot+[boxplot, box extend=0.869] table[row sep=newline,y index=0]{data/boxplot-2009.csv};
+  \addplot+[boxplot, box extend=0.869] table[row sep=newline,y index=0]{data/boxplot-2010.csv};
+  \addplot+[boxplot, box extend=0.865] table[row sep=newline,y index=0]{data/boxplot-2011.csv};
+  \addplot+[boxplot, box extend=1.000] table[row sep=newline,y index=0]{data/boxplot-2012.csv};
+  \addplot+[boxplot, box extend=0.478] table[row sep=newline,y index=0]{data/boxplot-2013.csv};
+  \addplot+[boxplot, box extend=0.307] table[row sep=newline,y index=0]{data/boxplot-2014.csv};
+  \addplot+[boxplot, box extend=0.517] table[row sep=newline,y index=0]{data/boxplot-2015.csv};
+\end{axis}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-boxplot.png&#34; alt=&#34;Boxplot generated with pgfplots&#34; /&gt;
+&lt;/p&gt;
+
+&lt;h4 id=&#34;lineplot:48174f4215bbd58febb4c58acfc25505&#34;&gt;Lineplot&lt;/h4&gt;
+
+&lt;p&gt;Here&amp;rsquo;s a trend plot, now only constraining the height to be equal to the golden ratio respecting plots:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\begin{axis}[height=0.681\textwidth,
+           , xlabel={elapsed time}
+           , ylabel={coffee intake}
+           , x unit=\si{\second}
+           , y unit=\si{\liter}
+           , xmin=0,xmax=30
+           , ymin=0,ymax=400
+           , smooth]
+  \addplot table[x=elapsed,y=intake,col sep=comma]{data/coffee-deadline.csv}; \addlegendentry{deadline};
+  \addplot table[x=elapsed,y=intake,col sep=comma]{data/coffee-normal.csv}; \addlegendentry{normal};
+\end{axis}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-lineplot.png&#34; alt=&#34;Lineplot generated with pgfplots&#34; /&gt;
+&lt;/p&gt;
+
+&lt;h4 id=&#34;barplot:48174f4215bbd58febb4c58acfc25505&#34;&gt;Barplot&lt;/h4&gt;
+
+&lt;p&gt;And finally a barplot, with the trick of grid lines that are on top and of the same color as the background, as recommended by Edward Tufte:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\begin{axis}[height=0.681\textwidth
+           , ybar
+           , xlabel={time to deadline}
+           , ylabel={calorie intake}
+           , x unit=\si{\second}
+           , y unit=\si{\joule}
+           , change y base
+           , y SI prefix=kilo
+           , ymajorgrids=true
+           , axis on top
+           , grid style=white
+           , major tick length=0pt
+           , ymin=0
+           , xtick=data
+         ]
+  \addplot+[draw opacity=0] table[x=time,y=intake,col sep=comma]{data/intake-food.csv}; \addlegendentry{food}
+  \addplot+[draw opacity=0] table[x=time,y=intake,col sep=comma]{data/intake-coffee.csv}; \addlegendentry{coffee}
+  \addplot+[draw opacity=0] table[x=time,y=intake,col sep=comma]{data/intake-overall.csv}; \addlegendentry{overall}
+\end{axis}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-barplot.png&#34; alt=&#34;Stacked plot generated with pgfplots&#34; /&gt;
+&lt;/p&gt;
+
+&lt;h3 id=&#34;references:48174f4215bbd58febb4c58acfc25505&#34;&gt;References&lt;/h3&gt;
+
+&lt;p&gt;I found Biber to be great as a modern BibTeX replacement.
+There are a few tricks required, e.g. for proper quotes in the references, otherwise it Just Works &amp;trade;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage[strict=true]{csquotes}
+\usepackage[backend=biber
+          , bibencoding=utf-8
+          , safeinputenc
+          , bibwarn=true
+          , style=alphabetic
+          , doi=false
+          , isbn=false
+          , url=false]{biblatex}
+\addbibresource{bibliography.bib}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;scaling:48174f4215bbd58febb4c58acfc25505&#34;&gt;Scaling&lt;/h3&gt;
+
+&lt;p&gt;The last trick is to disable print scaling, otherwise your document may be scaled and you absolutely do not want this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;\usepackage{hyperref}
+\hypersetup{pdfauthor={My Name}
+          , pdftitle={My Title}
+          , pdfprintscaling=None}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;markdown:48174f4215bbd58febb4c58acfc25505&#34;&gt;Markdown&lt;/h3&gt;
+
+&lt;p&gt;There is a trick that I&amp;rsquo;m using for writing down notes in markdown and producing a pdf from it.
+It&amp;rsquo;s the awesome &lt;a href=&#34;http://pandoc.org/&#34;&gt;pandoc&lt;/a&gt; tool that is able to convert between a ridiculous amount of formats.
+For this I have a makefile with a target similar to:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;pandoc --filter=pandoc-citeproc --bibliography=$(ref) --toc --latex-engine=$(engine) -o $(target) $(src)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;inspiration:48174f4215bbd58febb4c58acfc25505&#34;&gt;Inspiration&lt;/h2&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;&lt;a href=&#34;https://vimeo.com/45232468&#34;&gt;Inge Druckrey: Teaching to See&lt;/a&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
