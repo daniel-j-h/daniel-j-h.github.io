@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Selection Algorithms for Graph Partitioning</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Selection Algorithms for Graph Partitioning">
+  <meta name="generator" content="Hugo 0.15" />
+  <link href="" rel="alternate" type="application/rss+xml" title="Daniel J. H." />
+  <link href="https://daniel-j-h.github.io/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://daniel-j-h.github.io/css/hc.css" rel="stylesheet">
+  <link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css" rel="stylesheet">
+  
+    
+    </head>
+    <body>
+<div class="nav-toggle"><i class="fa fa-bars fa-2x"></i> Herring Cove </div>
+      <div id = "wrapper">
+
+
+<div class="navbar navbar-default" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a href="https://daniel-j-h.github.io/"><p class="navbar-brand">Daniel J. H.</p></a>
+        </div>
+        <div class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+					
+					
+          </ul>
+        </div>
+      </div>
+    </div>
+
+
+
+       
+       <div id="sidebar-wrapper">
+        <ul class="sidebar-nav">
+					<img src="" />
+          <li class="sidebar-brand"><a href="https://daniel-j-h.github.io/"><h1 class="brand">Daniel J. H.</h1></a><h3>blog blog blog</h3></li>
+          <hr />
+					
+          <hr />
+          <div id="social-wrapper">
+           <li> <a href="danieljayh"><i class="fa fa-twitter-square"></i> @twitter</a></li>
+           
+           
+           <li> <a href="daniel-j-h"><i class="fa fa-github-square"></i> github</a> </li>
+         </div>
+       </ul>
+     </div>
+
+
+
+     <div class="container">
+
+
+  <div id="article">
+   <div class="article-title">Selection Algorithms for Graph Partitioning</div>
+   <p class="meta"><small>&nbsp;<i class="fa fa-calendar-o"></i> 2015-12-13</small></p> <hr/>
+   <div class="post">
+     
+
+<p>In which I optimize a graph partitioner by carefully extracting the algorithm&rsquo;s core requirements and then selecting appropriate C++14 Stdlib algorithms.</p>
+
+<h2 id="motivation:5db77db6bc73fef476eb5c7187413d9a">Motivation</h2>
+
+<p>The following paper introduces a simple yet powerful graph partitioning technique called Inertial Flow.</p>
+
+<blockquote>
+<p><a href="http://sommer.jp/roadseparator.htm">On Balanced Separators in Road Networks</a> (doi: <code>10.1007/978-3-319-20086</code>)</p>
+</blockquote>
+
+<p>The basic idea is this:</p>
+
+<ul>
+<li>Sort vertices &ldquo;spatially&rdquo; by a linear combination of their coordinate&rsquo;s latitude and longitude</li>
+<li>Take the first <code>k</code> nodes forming the sources and the last <code>k</code> nodes forming the sinks</li>
+<li>Run a single Max-Flow algorithm from sources to sinks and return the corresponding Min-Cut</li>
+</ul>
+
+<p>Setting the balance parameter <code>k</code> e.g. to <code>0.25 * |V|</code> guarantees for a balanced partition, since the disjoint sets have at least <code>k</code> vertices.
+As an optimization you can try different spatial orders, that is visually you rotate a line <code>n</code> times, run the algorithm and return the best cut.
+For partitioning your graph you then recurse on both disjoint vertex sets, until you reach a certain depth or a minimum number of nodes.
+That&rsquo;s it. Really, it&rsquo;s that simple and it works surprisingly well!</p>
+
+<p>Take a look at the following map I generated from dumping the partitioner&rsquo;s graph using <a href="https://github.com/mapbox/tippecanoe">tippecanoe</a> to build  a simplified vector tilesets.</p>
+
+<iframe width='100%' height='500px' frameBorder='0' src='https://api.mapbox.com/styles/v1/danieljh/cii4lhkpn005wb8lzwjj43ipy.html?title=true&access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw#9.658735200693558/52.4992304153767/13.449950544246803/0'></iframe>
+
+<p>This is a single algorithm run on Berlin with <code>k = 0.25 * |V|</code> and a simple spatial order by longitude. The blue points represent the first <code>k</code> vertices under that spatial order forming the source.
+The red points represent the last <code>k</code> vertices under that spatial order forming the sinks.
+Running a single Max-Flow algorithms such as Edmonds–Karp, Push–Relabel or Dinic&rsquo;s algorithm from sources to sinks results in the corresponding Min-Cut that is represented by the black points.</p>
+
+<h2 id="deriving-the-spatial-order:5db77db6bc73fef476eb5c7187413d9a">Deriving the Spatial Order</h2>
+
+<p>The spatial order is derived by a binary function <code>spatially</code> of two vertices, that compares a linear combination of their coordinate&rsquo;s latitude and longitude.</p>
+
+<p>The first and last <code>k</code> vertices can then be determined by using <a href="http://en.cppreference.com/w/cpp/algorithm/sort"><code>std::sort</code></a> as described in the paper.</p>
+
+<pre><code>sort(begin(vertices), end(vertices), spatially);
+</code></pre>
+
+<p>We can then take the first and last <code>k</code> vertices forming sources and sinks, respectively.
+But wait, we can do better: there is no need to sort the vertices in the &ldquo;middle&rdquo;. Let&rsquo;s to less work by using <a href="http://en.cppreference.com/w/cpp/algorithm/partial_sort"><code>std::partial_sort</code></a>.</p>
+
+<pre><code>partial_sort(begin(vertices), begin(vertices) + k, end(vertices), spatially);
+partial_sort(rbegin(vertices), rbegin(vertices) + k, rend(vertices), flip(spatially));
+</code></pre>
+
+<p>This sorts the first <code>k</code> vertices, and then sorts the last <code>k</code> vertices with flipped arguments for the binary function (we flip the arguments instead of <code>std::not2</code> so that the relation is still irreflexive). Great, less work and good enough for our use-case!</p>
+
+<p>But do we really need a complete ordering of the first and last <code>k</code> vertices? After all we only need the order to determine sources and sinks for the Max-Flow algorithm.
+We are neither interested in which order the first <code>k</code> are, nor in which order the last <code>k</code> elements are.
+Take a look at the visualization: all what matters is the vertex property &ldquo;first <code>k</code> in the spatial order&rdquo; (blue) or &ldquo;last <code>k</code> in the spatial order&rdquo; (red). It does not matter how the red or blue points are ordered in the set of red and blue vertices, respectively.</p>
+
+<p>Let&rsquo;s give this another try. With <a href="http://en.cppreference.com/w/cpp/algorithm/nth_element"><code>std::nth_element</code></a> we can get the element at position <code>k</code> that would occur there if the full range was sorted.
+In addition, all the elements before the <code>k</code>th element are &ldquo;less or equal&rdquo; to that element. Interesting, so this is a variation of insertion sort.</p>
+
+<pre><code>nth_element(begin(vertices), begin(vertices) + k, end(vertices), spatially);
+nth_element(rbegin(vertices), rbegin(vertices) + k, rend(vertices), flip(spatially));
+</code></pre>
+
+<p>Visually speaking, this tells us &ldquo;these are red&rdquo;, and &ldquo;these are blue&rdquo;, without any ordering guarantees in the sets.</p>
+
+<p>It is crucial to understand the difference to partial sorting. Suppose we have a range of integers.</p>
+
+<pre><code>8 7 6 4 5 3 3 2
+</code></pre>
+
+<p>Using <a href="http://en.cppreference.com/w/cpp/algorithm/partial_sort"><code>std::partial_sort</code></a> on the first and last three elements results in the following.</p>
+
+<pre><code>2 3 3 _ _ 6 7 8
+</code></pre>
+
+<p>In contrast, using <a href="http://en.cppreference.com/w/cpp/algorithm/nth_element"><code>std::nth_element</code></a> on position three from the beginning and end gives you the following guarantees:</p>
+
+<pre><code>_ _ 3 _ _ 6 _ _
+____|     |____
+&lt;= 3       &gt;= 6
+</code></pre>
+
+<p>The subranges are no longer sorted, but satisfy the binary function with respect to the selected element. This allows the algorithm to do less work then the partial or even the full sort algorithm.</p>
+
+<p>Now that we know how <a href="http://en.cppreference.com/w/cpp/algorithm/nth_element"><code>std::nth_element</code></a> works and what guarantees it gives us, we can even go further: the second <a href="http://en.cppreference.com/w/cpp/algorithm/nth_element"><code>std::nth_element</code></a> does not have to take a look at the full range, since we know that we already reordered the first <code>k</code> elements with the flipped binary function. We therefore come up with the following.</p>
+
+<pre><code>nth_element(begin(vertices), begin(vertices) + k, end(vertices), spatially);
+nth_element(rbegin(vertices), rbegin(vertices) + k, rend(vertices) - k, flip(spatially));
+</code></pre>
+
+<p>This reorders the first <code>k</code> elements by looking at the full range and then reorders the last <code>k</code> elements by only looking at the <code>k + (size - k)</code> elements from the end.</p>
+
+<h2 id="discussion:5db77db6bc73fef476eb5c7187413d9a">Discussion</h2>
+
+<p>I talked to Christian Sommer, one of the paper&rsquo;s authors, about this. He acknowledged there is no need for a full ordering that <a href="http://en.cppreference.com/w/cpp/algorithm/sort"><code>std::sort</code></a> gives you as described in the paper.
+Furthermore he argued that you could fully sort your <code>n</code> spatial orders and keep them around for all recursion steps, which would require more memory and algorithms that can select the subgraph&rsquo;s vertices from the orders.</p>
+
+<p>As of writing this, the prototype partitioner still uses the Edmonds-Karp algorithms.
+We can probably gain significant improvements by using Dinic&rsquo;s algorithm, shadowing the small improvements achieved here.
+This does not mean that we should not optimize for easy wins as it was with this case; after all the final reordering optimization on its own is faster than a full sort by a factor of 4-7 from what I saw in a few experiments.
+Also, this is where the fun is in engineering and programming :-)</p>
+
+<h2 id="further-reading:5db77db6bc73fef476eb5c7187413d9a">Further Reading</h2>
+
+<ul>
+<li>Sean Parent <a href="https://github.com/sean-parent/sean-parent.github.io/wiki/Papers-and-Presentations">has a few papers and presentations</a> in which he explains similar clever Stdlib algorithm usage</li>
+<li>Alexander Stepanov&rsquo;s &ldquo;From Mathematics to Generic Programming&rdquo; and &ldquo;Elements of Programming&rdquo; go in great detail about algorithm requirements and guarantees</li>
+</ul>
+
+<h2 id="summary:5db77db6bc73fef476eb5c7187413d9a">Summary</h2>
+
+<p>Inertial Flow is a simple yet powerful graph partitioning technique that requires a spatial order.
+Deriving the spatial order can be optimized by carefully looking at the algorithm&rsquo;s requirements.
+Know your Stdlib, in particular be familiar with more &ldquo;exotic&rdquo; algorithms such as <a href="http://en.cppreference.com/w/cpp/algorithm/nth_element"><code>std::nth_element</code></a> and <a href="http://en.cppreference.com/w/cpp/algorithm/rotate"><code>std::rotate</code></a> &mdash; or of course equivalent algorithms in your language of choice.</p>
+
+   </div>
+ </div>
+
+
+ <a href="https://twitter.com/share" class="twitter-share-button " data-size="small" data-count="none">Tweet</a>
+ <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+
+ <ul class="pager">
+     
+      &nbsp;<li class="next"><a href="https://daniel-j-h.github.io/post/latex-a-modern-approach/"> LaTeX A Modern Approach</a></li>
+</ul>
+
+
+
+    </ul>
+    </div>
+    <footer>
+
+        <p class="text-muted credit">&copy; . All rights reserved. </p>
+    </footer>
+ 
+    <script src="/js/jquery-1.10.2.min.js"></script>
+    <script src="/js/bootstrap.min.js"></script>
+    <script src="/js/bootstrap.js"></script>
+    <script type="text/javascript" src="/js/hc.js"></script>
+</body>
+
+</html>
+

@@ -286,8 +286,7 @@ The box&amp;rsquo;s width are also proportional to the group&amp;rsquo;s sizes &
 \end{axis}
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-boxplot.png&#34; alt=&#34;Boxplot generated with pgfplots&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-boxplot.png&#34; alt=&#34;Boxplot generated with pgfplots&#34; /&gt;&lt;/p&gt;
 
 &lt;h4 id=&#34;lineplot:48174f4215bbd58febb4c58acfc25505&#34;&gt;Lineplot&lt;/h4&gt;
 
@@ -306,8 +305,7 @@ The box&amp;rsquo;s width are also proportional to the group&amp;rsquo;s sizes &
 \end{axis}
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-lineplot.png&#34; alt=&#34;Lineplot generated with pgfplots&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-lineplot.png&#34; alt=&#34;Lineplot generated with pgfplots&#34; /&gt;&lt;/p&gt;
 
 &lt;h4 id=&#34;barplot:48174f4215bbd58febb4c58acfc25505&#34;&gt;Barplot&lt;/h4&gt;
 
@@ -334,8 +332,7 @@ The box&amp;rsquo;s width are also proportional to the group&amp;rsquo;s sizes &
 \end{axis}
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-barplot.png&#34; alt=&#34;Stacked plot generated with pgfplots&#34; /&gt;
-&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://daniel-j-h.github.io/images/latex-a-modern-approach/pgfplots-barplot.png&#34; alt=&#34;Stacked plot generated with pgfplots&#34; /&gt;&lt;/p&gt;
 
 &lt;h3 id=&#34;references:48174f4215bbd58febb4c58acfc25505&#34;&gt;References&lt;/h3&gt;
 

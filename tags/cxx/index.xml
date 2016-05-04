@@ -6,8 +6,130 @@
     <description>Recent content in Cxx on Daniel J. H.</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 01 May 2015 19:49:27 +0200</lastBuildDate>
+    <lastBuildDate>Sun, 13 Dec 2015 13:53:51 +0100</lastBuildDate>
     <atom:link href="https://daniel-j-h.github.io/tags/cxx/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Selection Algorithms for Graph Partitioning</title>
+      <link>https://daniel-j-h.github.io/post/selection-algorithms-for-partitioning/</link>
+      <pubDate>Sun, 13 Dec 2015 13:53:51 +0100</pubDate>
+      
+      <guid>https://daniel-j-h.github.io/post/selection-algorithms-for-partitioning/</guid>
+      <description>
+
+&lt;p&gt;In which I optimize a graph partitioner by carefully extracting the algorithm&amp;rsquo;s core requirements and then selecting appropriate C++14 Stdlib algorithms.&lt;/p&gt;
+
+&lt;h2 id=&#34;motivation:5db77db6bc73fef476eb5c7187413d9a&#34;&gt;Motivation&lt;/h2&gt;
+
+&lt;p&gt;The following paper introduces a simple yet powerful graph partitioning technique called Inertial Flow.&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;&lt;a href=&#34;http://sommer.jp/roadseparator.htm&#34;&gt;On Balanced Separators in Road Networks&lt;/a&gt; (doi: &lt;code&gt;10.1007/978-3-319-20086&lt;/code&gt;)&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;The basic idea is this:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Sort vertices &amp;ldquo;spatially&amp;rdquo; by a linear combination of their coordinate&amp;rsquo;s latitude and longitude&lt;/li&gt;
+&lt;li&gt;Take the first &lt;code&gt;k&lt;/code&gt; nodes forming the sources and the last &lt;code&gt;k&lt;/code&gt; nodes forming the sinks&lt;/li&gt;
+&lt;li&gt;Run a single Max-Flow algorithm from sources to sinks and return the corresponding Min-Cut&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Setting the balance parameter &lt;code&gt;k&lt;/code&gt; e.g. to &lt;code&gt;0.25 * |V|&lt;/code&gt; guarantees for a balanced partition, since the disjoint sets have at least &lt;code&gt;k&lt;/code&gt; vertices.
+As an optimization you can try different spatial orders, that is visually you rotate a line &lt;code&gt;n&lt;/code&gt; times, run the algorithm and return the best cut.
+For partitioning your graph you then recurse on both disjoint vertex sets, until you reach a certain depth or a minimum number of nodes.
+That&amp;rsquo;s it. Really, it&amp;rsquo;s that simple and it works surprisingly well!&lt;/p&gt;
+
+&lt;p&gt;Take a look at the following map I generated from dumping the partitioner&amp;rsquo;s graph using &lt;a href=&#34;https://github.com/mapbox/tippecanoe&#34;&gt;tippecanoe&lt;/a&gt; to build  a simplified vector tilesets.&lt;/p&gt;
+
+&lt;iframe width=&#39;100%&#39; height=&#39;500px&#39; frameBorder=&#39;0&#39; src=&#39;https://api.mapbox.com/styles/v1/danieljh/cii4lhkpn005wb8lzwjj43ipy.html?title=true&amp;access_token=pk.eyJ1IjoiZGFuaWVsamgiLCJhIjoiTnNYb25JSSJ9.vYOnsuu1zeKcGW2nj0uJZw#9.658735200693558/52.4992304153767/13.449950544246803/0&#39;&gt;&lt;/iframe&gt;
+
+&lt;p&gt;This is a single algorithm run on Berlin with &lt;code&gt;k = 0.25 * |V|&lt;/code&gt; and a simple spatial order by longitude. The blue points represent the first &lt;code&gt;k&lt;/code&gt; vertices under that spatial order forming the source.
+The red points represent the last &lt;code&gt;k&lt;/code&gt; vertices under that spatial order forming the sinks.
+Running a single Max-Flow algorithms such as Edmonds–Karp, Push–Relabel or Dinic&amp;rsquo;s algorithm from sources to sinks results in the corresponding Min-Cut that is represented by the black points.&lt;/p&gt;
+
+&lt;h2 id=&#34;deriving-the-spatial-order:5db77db6bc73fef476eb5c7187413d9a&#34;&gt;Deriving the Spatial Order&lt;/h2&gt;
+
+&lt;p&gt;The spatial order is derived by a binary function &lt;code&gt;spatially&lt;/code&gt; of two vertices, that compares a linear combination of their coordinate&amp;rsquo;s latitude and longitude.&lt;/p&gt;
+
+&lt;p&gt;The first and last &lt;code&gt;k&lt;/code&gt; vertices can then be determined by using &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/sort&#34;&gt;&lt;code&gt;std::sort&lt;/code&gt;&lt;/a&gt; as described in the paper.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;sort(begin(vertices), end(vertices), spatially);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We can then take the first and last &lt;code&gt;k&lt;/code&gt; vertices forming sources and sinks, respectively.
+But wait, we can do better: there is no need to sort the vertices in the &amp;ldquo;middle&amp;rdquo;. Let&amp;rsquo;s to less work by using &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/partial_sort&#34;&gt;&lt;code&gt;std::partial_sort&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;partial_sort(begin(vertices), begin(vertices) + k, end(vertices), spatially);
+partial_sort(rbegin(vertices), rbegin(vertices) + k, rend(vertices), flip(spatially));
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This sorts the first &lt;code&gt;k&lt;/code&gt; vertices, and then sorts the last &lt;code&gt;k&lt;/code&gt; vertices with flipped arguments for the binary function (we flip the arguments instead of &lt;code&gt;std::not2&lt;/code&gt; so that the relation is still irreflexive). Great, less work and good enough for our use-case!&lt;/p&gt;
+
+&lt;p&gt;But do we really need a complete ordering of the first and last &lt;code&gt;k&lt;/code&gt; vertices? After all we only need the order to determine sources and sinks for the Max-Flow algorithm.
+We are neither interested in which order the first &lt;code&gt;k&lt;/code&gt; are, nor in which order the last &lt;code&gt;k&lt;/code&gt; elements are.
+Take a look at the visualization: all what matters is the vertex property &amp;ldquo;first &lt;code&gt;k&lt;/code&gt; in the spatial order&amp;rdquo; (blue) or &amp;ldquo;last &lt;code&gt;k&lt;/code&gt; in the spatial order&amp;rdquo; (red). It does not matter how the red or blue points are ordered in the set of red and blue vertices, respectively.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;rsquo;s give this another try. With &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/nth_element&#34;&gt;&lt;code&gt;std::nth_element&lt;/code&gt;&lt;/a&gt; we can get the element at position &lt;code&gt;k&lt;/code&gt; that would occur there if the full range was sorted.
+In addition, all the elements before the &lt;code&gt;k&lt;/code&gt;th element are &amp;ldquo;less or equal&amp;rdquo; to that element. Interesting, so this is a variation of insertion sort.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;nth_element(begin(vertices), begin(vertices) + k, end(vertices), spatially);
+nth_element(rbegin(vertices), rbegin(vertices) + k, rend(vertices), flip(spatially));
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Visually speaking, this tells us &amp;ldquo;these are red&amp;rdquo;, and &amp;ldquo;these are blue&amp;rdquo;, without any ordering guarantees in the sets.&lt;/p&gt;
+
+&lt;p&gt;It is crucial to understand the difference to partial sorting. Suppose we have a range of integers.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;8 7 6 4 5 3 3 2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Using &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/partial_sort&#34;&gt;&lt;code&gt;std::partial_sort&lt;/code&gt;&lt;/a&gt; on the first and last three elements results in the following.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;2 3 3 _ _ 6 7 8
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In contrast, using &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/nth_element&#34;&gt;&lt;code&gt;std::nth_element&lt;/code&gt;&lt;/a&gt; on position three from the beginning and end gives you the following guarantees:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;_ _ 3 _ _ 6 _ _
+____|     |____
+&amp;lt;= 3       &amp;gt;= 6
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The subranges are no longer sorted, but satisfy the binary function with respect to the selected element. This allows the algorithm to do less work then the partial or even the full sort algorithm.&lt;/p&gt;
+
+&lt;p&gt;Now that we know how &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/nth_element&#34;&gt;&lt;code&gt;std::nth_element&lt;/code&gt;&lt;/a&gt; works and what guarantees it gives us, we can even go further: the second &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/nth_element&#34;&gt;&lt;code&gt;std::nth_element&lt;/code&gt;&lt;/a&gt; does not have to take a look at the full range, since we know that we already reordered the first &lt;code&gt;k&lt;/code&gt; elements with the flipped binary function. We therefore come up with the following.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;nth_element(begin(vertices), begin(vertices) + k, end(vertices), spatially);
+nth_element(rbegin(vertices), rbegin(vertices) + k, rend(vertices) - k, flip(spatially));
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This reorders the first &lt;code&gt;k&lt;/code&gt; elements by looking at the full range and then reorders the last &lt;code&gt;k&lt;/code&gt; elements by only looking at the &lt;code&gt;k + (size - k)&lt;/code&gt; elements from the end.&lt;/p&gt;
+
+&lt;h2 id=&#34;discussion:5db77db6bc73fef476eb5c7187413d9a&#34;&gt;Discussion&lt;/h2&gt;
+
+&lt;p&gt;I talked to Christian Sommer, one of the paper&amp;rsquo;s authors, about this. He acknowledged there is no need for a full ordering that &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/sort&#34;&gt;&lt;code&gt;std::sort&lt;/code&gt;&lt;/a&gt; gives you as described in the paper.
+Furthermore he argued that you could fully sort your &lt;code&gt;n&lt;/code&gt; spatial orders and keep them around for all recursion steps, which would require more memory and algorithms that can select the subgraph&amp;rsquo;s vertices from the orders.&lt;/p&gt;
+
+&lt;p&gt;As of writing this, the prototype partitioner still uses the Edmonds-Karp algorithms.
+We can probably gain significant improvements by using Dinic&amp;rsquo;s algorithm, shadowing the small improvements achieved here.
+This does not mean that we should not optimize for easy wins as it was with this case; after all the final reordering optimization on its own is faster than a full sort by a factor of 4-7 from what I saw in a few experiments.
+Also, this is where the fun is in engineering and programming :-)&lt;/p&gt;
+
+&lt;h2 id=&#34;further-reading:5db77db6bc73fef476eb5c7187413d9a&#34;&gt;Further Reading&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Sean Parent &lt;a href=&#34;https://github.com/sean-parent/sean-parent.github.io/wiki/Papers-and-Presentations&#34;&gt;has a few papers and presentations&lt;/a&gt; in which he explains similar clever Stdlib algorithm usage&lt;/li&gt;
+&lt;li&gt;Alexander Stepanov&amp;rsquo;s &amp;ldquo;From Mathematics to Generic Programming&amp;rdquo; and &amp;ldquo;Elements of Programming&amp;rdquo; go in great detail about algorithm requirements and guarantees&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;summary:5db77db6bc73fef476eb5c7187413d9a&#34;&gt;Summary&lt;/h2&gt;
+
+&lt;p&gt;Inertial Flow is a simple yet powerful graph partitioning technique that requires a spatial order.
+Deriving the spatial order can be optimized by carefully looking at the algorithm&amp;rsquo;s requirements.
+Know your Stdlib, in particular be familiar with more &amp;ldquo;exotic&amp;rdquo; algorithms such as &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/nth_element&#34;&gt;&lt;code&gt;std::nth_element&lt;/code&gt;&lt;/a&gt; and &lt;a href=&#34;http://en.cppreference.com/w/cpp/algorithm/rotate&#34;&gt;&lt;code&gt;std::rotate&lt;/code&gt;&lt;/a&gt; &amp;mdash; or of course equivalent algorithms in your language of choice.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>An Intuitive Use-Case For Monadic Bind And Kleisli Composition</title>
