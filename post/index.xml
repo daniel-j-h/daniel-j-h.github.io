@@ -6,8 +6,86 @@
     <description>Recent content in Posts on Daniel J. H.</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sun, 13 Dec 2015 13:53:51 +0100</lastBuildDate>
+    <lastBuildDate>Mon, 12 Dec 2016 20:36:17 +0100</lastBuildDate>
     <atom:link href="https://daniel-j-h.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Strong Typedefs in C&#43;&#43; by Inheriting Constructors</title>
+      <link>https://daniel-j-h.github.io/post/strong-typedefs-inheriting-constructors/</link>
+      <pubDate>Mon, 12 Dec 2016 20:36:17 +0100</pubDate>
+      
+      <guid>https://daniel-j-h.github.io/post/strong-typedefs-inheriting-constructors/</guid>
+      <description>
+
+&lt;h2 id=&#34;motivation:240ae847aec3a6a4121b5a3eb74dec29&#34;&gt;Motivation&lt;/h2&gt;
+
+&lt;p&gt;Suppose we want to represent a &lt;code&gt;Tree&lt;/code&gt; type as either a &lt;code&gt;Leaf&lt;/code&gt; type or a recursive &lt;code&gt;Node&lt;/code&gt; type which holds a left and right &lt;code&gt;Tree&lt;/code&gt; itself.
+One way to accomplish this is making use of a type-safe sumtype such as Boost.Variant.
+In addition we want our &lt;code&gt;Tree&lt;/code&gt; type to be a strong typedef instead of a weak alias for a variant.&lt;/p&gt;
+
+&lt;p&gt;This can can be done in C++11 and C++14 by inheriting from the variant and then inheriting its constructors, too.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-c++&#34;&gt;using TreeBase = boost::variant&amp;lt;Leaf, boost::recursive_wrapper&amp;lt;Node&amp;gt;&amp;gt;;
+
+struct Tree : TreeBase {
+  using TreeBase::TreeBase;
+
+  // ...
+};
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Our &lt;code&gt;Tree&lt;/code&gt; is now a strong typedef (opaque typedef, newtype). Great!&lt;/p&gt;
+
+&lt;p&gt;Except that GCC trunk crashes with an internal compiler error.
+And LLVM rejects this with compile-time errors, too.&lt;/p&gt;
+
+&lt;p&gt;As it turns out inheriting constructors has its quirks and defects for which we need C++17 to fix a total of &lt;em&gt;eight&lt;/em&gt; issues documented here:&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;&lt;a href=&#34;http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/p0136r1.html&#34;&gt;http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/p0136r1.html&lt;/a&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Quoting the summary for one of those issues regarding inheriting constructors:&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Default arguments are a common mechanism for applying SFINAE to constructors. However, default arguments are not carried over when base class constructors are inherited; instead, an overload set of constructors with various numbers of arguments is created in the derived class. This seems problematic.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;If we take a look at Boost.Variant (pseudocode below) we see how this is &amp;ldquo;problematic&amp;rdquo;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-c++&#34;&gt;struct variant {
+  template &amp;lt;typename T&amp;gt;
+  variant(const T&amp;amp; t, typename enable_if&amp;lt;is_constructible_from&amp;lt;const T&amp;amp;&amp;gt;::value&amp;gt;::type* = 0) { }
+
+  template &amp;lt;typename T&amp;gt;
+  variant(T&amp;amp;&amp;amp; t, typename enable_if&amp;lt;is_constructible_from&amp;lt;T&amp;amp;&amp;amp;&amp;gt;&amp;gt;::type* = 0) { }
+};
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Inheriting &lt;code&gt;variant&lt;/code&gt;&amp;rsquo;s constructors now creates multiple constructors in the derived class completely messing with the SFINAE approach, as described in the issue summary.&lt;/p&gt;
+
+&lt;p&gt;And this is where my journey ends.
+I really hoped for an easy way to create strong typedefs via inheriting constructors.
+But as long as there is no language support for it, it seems like a lost cause.&lt;/p&gt;
+
+&lt;h2 id=&#34;further-reading:240ae847aec3a6a4121b5a3eb74dec29&#34;&gt;Further Reading&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/p0136r1.html&#34;&gt;Rewording inheriting constructors (core issue 1941 et al)&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/boostorg/variant/blob/f739850467d544d51721723d2b606764469f6777/include/boost/variant/variant.hpp#L1757-L1792&#34;&gt;Boost.Variant&amp;rsquo;s Constructors&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gist.github.com/daniel-j-h/12c8b7f1c59b5a76c7e75dab38eb06fe#file-crash-cc&#34;&gt;Small Self-Contained Reproducible Example&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://gcc.gnu.org/bugzilla/show_bug.cgi?id=78767&#34;&gt;GCC ICE Ticket&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://svn.boost.org/trac/boost/ticket/12680&#34;&gt;Boost.Variant Ticket&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;summary:240ae847aec3a6a4121b5a3eb74dec29&#34;&gt;Summary&lt;/h2&gt;
+
+&lt;p&gt;Before C++17 you can not tell if inheriting constructors is possible or not other than by reading the library code.
+Thanks to Agustín Bergé who brought this to my attention.&lt;/p&gt;
+
+&lt;p&gt;If you are curious have a look at Haskell&amp;rsquo;s pattern matching or Rust&amp;rsquo;s and Swift&amp;rsquo;s enums.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Selection Algorithms for Graph Partitioning</title>
